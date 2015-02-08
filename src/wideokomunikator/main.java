@@ -1,16 +1,10 @@
 package wideokomunikator;
 
-import com.sun.corba.se.spi.orbutil.threadpool.ThreadPool;
-import java.awt.event.ComponentAdapter;
+import wideokomunikator.audiovideo.AudioVideo;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.io.IOException;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-import javax.sound.sampled.LineUnavailableException;
 import javax.sound.sampled.TargetDataLine;
-import wideokomunikator.client.Client;
-import wideokomunikator.server.Server;
 
 public class main {
     private static AudioVideo audio;
@@ -30,7 +24,7 @@ public class main {
         }
         
         audio = new AudioVideo();
-        audio.record2();
+        audio.record();
         try {
             Thread.sleep(5000);
         } catch (InterruptedException ex) {

@@ -1,41 +1,19 @@
-package wideokomunikator;
+package wideokomunikator.audiovideo;
 
-import com.xuggle.mediatool.*;
 import com.xuggle.xuggler.*;
-import com.xuggle.xuggler.video.ConverterFactory;
-import com.xuggle.xuggler.video.IConverter;
+import com.xuggle.xuggler.video.*;
 import java.awt.image.BufferedImage;
-import java.io.ByteArrayOutputStream;
-import java.io.DataOutputStream;
 import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.ObjectOutputStream;
-import java.io.OutputStream;
-import java.net.DatagramPacket;
-import java.net.DatagramSocket;
-import java.net.InetSocketAddress;
-import java.net.SocketException;
+import java.net.*;
 import java.util.ArrayList;
-import java.util.concurrent.TimeUnit;
 import javax.imageio.ImageIO;
-import javax.sound.sampled.AudioFormat;
-import javax.sound.sampled.AudioSystem;
-import javax.sound.sampled.DataLine;
-import javax.sound.sampled.Line;
-import javax.sound.sampled.LineUnavailableException;
-import javax.sound.sampled.Mixer;
-import javax.sound.sampled.SourceDataLine;
-import javax.sound.sampled.TargetDataLine;
+import javax.sound.sampled.*;
 import org.bytedeco.javacv.FrameGrabber;
 
 public class AudioVideo {
 
-    DataOutputStream os;
-    FileOutputStream fos = null;
     long ct = System.currentTimeMillis();
-    //private IContainer wr = IContainer.make();
     //Audio
     private SourceDataLine speakers = null;
     private TargetDataLine microphone = null;
@@ -46,6 +24,9 @@ public class AudioVideo {
     private boolean bigEndian = true;
     private AudioFormat audioFormat = null;
     private Thread thread_audio, thread_video;
+    private DatagramSocket datagram_socket_audio;
+    private DatagramSocket datagram_socket_video;
+
     //Video
     private FrameGrabber camera = null;
 
@@ -66,87 +47,61 @@ public class AudioVideo {
         }
 
         try {
-            datagram_socket = new DatagramSocket(new InetSocketAddress("localhost", 30001));
+            datagram_socket_audio = new DatagramSocket();
+            datagram_socket_video = new DatagramSocket();
         } catch (SocketException ex) {
             ex.printStackTrace();
         }
 
     }
-
-    IContainer container = IContainer.make();
     IStreamCoder audioCoder;
     IStreamCoder videoCoder;
-    ObjectOutputStream oos;
 
-    public void record2() {
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        try {
-            oos = new ObjectOutputStream(baos);
-        } catch (IOException ex) {
-            ex.printStackTrace();
-        }
-        File f = new File("D:/file.aac");
-        try {
-            fos = new FileOutputStream(f);
-        } catch (FileNotFoundException ex) {
-            ex.printStackTrace();
-        }
+    public void record() {
         initCamera(camera);
         try {
-            //speakers = getSpeaker();
             initMicrophone(microphone);
         } catch (LineUnavailableException ex) {
             ex.printStackTrace();
         }
-        IContainerFormat format = IContainerFormat.make();
-        //format.setOutputFormat("aac", null, "audio/aac");
-        format.setOutputFormat("mp4", null, "video/mp4");
-        container.setFormat(format);
         audioCoder = IStreamCoder.make(IStreamCoder.Direction.ENCODING, ICodec.ID.CODEC_ID_AAC);
         audioCoder.setSampleRate((int) sampleRate);
-        audioCoder.setBitRate(128000);
-        audioCoder.setBitRateTolerance(90000);
+        audioCoder.setBitRate(64000);
+        audioCoder.setBitRateTolerance(64000);
         audioCoder.setChannels(channels);
-        audioCoder.setFrameRate(IRational.make(30, 1));
+        audioCoder.setFrameRate(IRational.make(48000, 1));
         audioCoder.setAutomaticallyStampPacketsForStream(true);
-        //audioCoder.setGlobalQuality(75);
-        audioCoder.open();
+        audioCoder.setProperty("vbr", "5");
+        IMetaData audiocodecOptions = IMetaData.make();
+        audiocodecOptions.setValue("tune", "zerolatency");
+        audioCoder.open(audiocodecOptions, null);
 
         try {
             camera.start();
         } catch (FrameGrabber.Exception ex) {
             ex.printStackTrace();
         }
-        IRational frameRate = IRational.make(1000, 1);
+        IRational frameRate = IRational.make((int) camera.getFrameRate(), 1);
         videoCoder = IStreamCoder.make(IStreamCoder.Direction.ENCODING, ICodec.ID.CODEC_ID_H264);
         videoCoder.setWidth(camera.getImageWidth());
         videoCoder.setHeight(camera.getImageHeight());
         videoCoder.setPixelType(IPixelFormat.Type.YUV420P);
-        videoCoder.setNumPicturesInGroupOfPictures(1);
-        videoCoder.setBitRate(900000);
-        videoCoder.setBitRateTolerance(90000);
-        videoCoder.setFlag(IStreamCoder.Flags.FLAG_QSCALE, true);
+        videoCoder.setBitRate(512000);
+        videoCoder.setBitRateTolerance(128000);
         videoCoder.setFrameRate(frameRate);
-        System.out.println(camera.getFrameRate());
+        videoCoder.setNumPicturesInGroupOfPictures(10);
         videoCoder.setTimeBase(IRational.make(1, (int) camera.getFrameRate()));
-        videoCoder.setGlobalQuality(10);
-        videoCoder.setAutomaticallyStampPacketsForStream(true);
         videoCoder.setFlag(IStreamCoder.Flags.FLAG_LOW_DELAY, true);
         videoCoder.setFlag(IStreamCoder.Flags.FLAG2_FAST, true);
         videoCoder.setProperty("me_method", "+zero");
         videoCoder.setProperty("x264-params", "fast-pskip=1");
-        videoCoder.open();
-
-        container.open(new output(), format);
-        container.addNewStream(audioCoder);
-        container.addNewStream(videoCoder);
-        container.writeHeader();
-
-        System.out.println(videoCoder.toString());
+        IMetaData videocodecOptions = IMetaData.make();
+        videocodecOptions.setValue("tune", "zerolatency");
+        videoCoder.open(videocodecOptions, null);
         thread_audio = new Thread(new Runnable() {
             @Override
             public void run() {
-                int size = microphone.getBufferSize() / 5;
+                int size = microphone.getBufferSize() / 20;
                 byte[] data = new byte[size];
                 short[] audioSamples = new short[size / (sampleSize / 8)];
                 int numBytesRead = 0;
@@ -166,7 +121,7 @@ public class AudioVideo {
                         int bytesEncoded = audioCoder.encodeAudio(packet, sample, offset);
                         offset += bytesEncoded;
                         if (packet.getSize() > 0) {
-                            sendPacket(packet);
+                            sendPacket(packet.getData().getByteArray(0, packet.getSize()), audioCoder);
                             packet.reset();
                         }
                     }
@@ -188,6 +143,7 @@ public class AudioVideo {
                     } catch (FrameGrabber.Exception ex) {
                         ex.printStackTrace();
                     }
+
                     long now = System.currentTimeMillis();
                     long timeStamp = (now - ct) * 1000;
                     //image = convertToType(image, BufferedImage.TYPE_3BYTE_BGR);
@@ -195,15 +151,16 @@ public class AudioVideo {
                     pictureSample = converter.toPicture(image, timeStamp);
                     videoCoder.encodeVideo(packet, pictureSample, 0);
                     if (packet.isComplete()) {
-                        sendPacket(packet);
+                        sendPacket(packet.getData().getByteArray(0, packet.getSize()), videoCoder);
                         packet.reset();
                     }
                 }
 
-                while (!packet.isComplete()) {
+                while (!packet.isComplete()&&record) {
                     videoCoder.encodeVideo(packet, null, 0);
                     if (packet.isComplete()) {
-                        sendPacket(packet);
+                        sendPacket(packet.getData().getByteArray(0, packet.getSize()), videoCoder);
+                        packet.reset();
                     }
                 }
                 videoCoder.close();
@@ -212,7 +169,7 @@ public class AudioVideo {
                 } catch (FrameGrabber.Exception ex) {
                     ex.printStackTrace();
                 }
-                
+
             }
         }
         );
@@ -220,8 +177,9 @@ public class AudioVideo {
         ct = System.currentTimeMillis();
 
         thread_audio.start();
-        //thread_video.start();
+        thread_video.start();
     }
+    int frames = 0;
 
     private void WritePicture(BufferedImage image, String name) throws IOException {
         File file = new File(name);
@@ -229,17 +187,31 @@ public class AudioVideo {
         ImageIO.write(image, "png", file);
     }
 
-    private void sendPacket(IPacket packet) {
-        if (packet.getSize() > 0) {
-            byte[] bytes = packet.getData().getByteArray(0, packet.getSize());
-            DatagramPacket datagramPacket = new DatagramPacket(bytes, 0, bytes.length, new InetSocketAddress("localhost", 30000));
-
-            try {
-                datagram_socket.send(datagramPacket);
-            } catch (IOException ex) {
-                ex.printStackTrace();
+    private void sendPacket(byte[] packet, IStreamCoder coder) {
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                long tim = System.nanoTime();
+                boolean isAudi = (coder.getCodecType() == ICodec.Type.CODEC_TYPE_AUDIO);
+                //byte[] bytes = packet.getData().getByteArray(0, packet.getSize());
+                DatagramPacket datagram;
+                if (isAudi) {
+                    datagram = new DatagramPacket(packet, packet.length, new InetSocketAddress("localhost", 30001));
+                    try {
+                        datagram_socket_audio.send(datagram);
+                    } catch (IOException ex) {
+                        ex.printStackTrace();
+                    }
+                } else {
+                    datagram = new DatagramPacket(packet, packet.length, new InetSocketAddress("localhost", 30000));
+                    try {
+                        datagram_socket_video.send(datagram);
+                    } catch (IOException ex) {
+                        ex.printStackTrace();
+                    }
+                }
             }
-        }
+        }).start();
     }
 
     private SourceDataLine getSpeaker() throws LineUnavailableException {
@@ -250,15 +222,13 @@ public class AudioVideo {
     }
 
     public void stop() {
-        //System.out.println("pocz");
         record = false;
         while (thread_audio.isAlive() || thread_video.isAlive()) {
             try {
                 Thread.sleep(10);
             } catch (InterruptedException ex) {
             }
-        }        
-        System.out.println("Stop");
+        }
     }
 
     public void setAudioFormat(float sampleRate, int sampleSizeInBits, int channels, boolean signed, boolean bigEndian) {
@@ -295,6 +265,7 @@ public class AudioVideo {
         camera.setImageHeight(480);
         camera.setFrameRate(30);
         camera.setPixelFormat(org.bytedeco.javacpp.avutil.AV_PIX_FMT_YUV420P);
+        
     }
 
     public FrameGrabber getCamera() throws FrameGrabber.Exception {
@@ -307,18 +278,15 @@ public class AudioVideo {
         for (int i = 0; i < destination.length; i++) {
             destination[i] = (short) ((source[(index += 1)] << 8)
                     | (source[index += 1] & 0xFF));
-            //System.out.println(destination);
         }
         return destination;
     }
 
     public byte[] toByte(short[] source) {
         byte[] destination = new byte[source.length * 2];
-        int index = -1;
         for (int i = 0; i < source.length; i++) {
             destination[i + 0] = (byte) ((source[i] >> 8) & 0xFF);
             destination[i + 1] = (byte) ((source[i] & 0xFF));
-            //System.out.println(destination);
         }
         return destination;
     }
@@ -335,40 +303,6 @@ public class AudioVideo {
             image.getGraphics().drawImage(sourceImage, 0, 0, null);
         }
         return image;
-    }
-
-    private DatagramSocket datagram_socket;
-
-    class output extends OutputStream {
-
-        private DatagramPacket packet;
-
-        private void send(byte[] bytes, int off, int len) {
-            packet = new DatagramPacket(bytes, off, len, new InetSocketAddress("localhost", 30000));
-            //System.out.println("wysylam " + packet.getLength());
-            /*try {
-             datagram_socket.send(packet);
-             } catch (IOException ex) {
-             ex.printStackTrace();
-             }*/
-        }
-
-        @Override
-        public void write(byte[] b, int off, int len) throws IOException {
-            send(b, off, len);
-        }
-
-        @Override
-        public void close() throws IOException {
-            datagram_socket.close();
-            super.close();
-        }
-
-        @Override
-        public void write(int b) throws IOException {
-            throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
-        }
-
     }
 
 }
