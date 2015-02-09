@@ -19,7 +19,7 @@ public class ClientConnection extends Thread{
     private InputStream server_in;
     private OutputStream server_out;
     private SSLSocket server;
-    private Hashtable responses,requests;
+    private Hashtable<Integer, Frame > responses,requests;
     private int frame_id = 0;
     public ClientConnection(String hostname,int port) throws IOException {
         Security.addProvider(new Provider());

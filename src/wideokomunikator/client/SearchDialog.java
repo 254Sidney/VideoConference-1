@@ -25,7 +25,7 @@ public abstract class SearchDialog extends JDialog{
     }
     private void initComponents(){
         setTitle("Szukaj");        
-        list = new JList(list_model = new DefaultListModel());
+        list = new JList<Friend>(list_model = new DefaultListModel<Friend>());
         search = new JTextField();
         search.setFont(new Font(search.getFont().getName(), Font.PLAIN, 20));
         JPanel panel = new JPanel();
@@ -48,14 +48,14 @@ public abstract class SearchDialog extends JDialog{
         l.setVerticalGroup(l.createSequentialGroup().addComponent(list));
         panel.setBorder(new EmptyBorder(-1, -1, -1, -1));
         list.setBorder(new BevelBorder(BevelBorder.LOWERED));
-        list.setCellRenderer(new ListCellRenderer() {
+        list.setCellRenderer(new ListCellRenderer<Friend>() {
             private final Color color = new Color(168, 221, 255);
             @Override
-            public Component getListCellRendererComponent(JList list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
+            public Component getListCellRendererComponent(JList<? extends Friend> list, Friend value, int index, boolean isSelected, boolean cellHasFocus) {
                 Component p = (Component)value;
                 p.setBackground(isSelected ? color : Color.WHITE);
                 return p;
-            }        
+            }     
         });
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
         initAction();
@@ -133,7 +133,7 @@ public abstract class SearchDialog extends JDialog{
             }
         }
         //System.out.println(list.length);
-        ArrayList<Friend> l = new ArrayList(Arrays.asList(list));
+        ArrayList<Friend> l = new ArrayList<Friend>(Arrays.asList(list));
         for(int i = 0;i<list_model.size();i++){
             Friend f = list_model.get(i);
             if(!l.contains(f)){
@@ -165,7 +165,7 @@ public abstract class SearchDialog extends JDialog{
     
     public abstract void addUser(User user);
     
-    private JList list;
+    private JList<Friend> list;
     private JTextField search;    
     private JPopupMenu popup;
     private DefaultListModel<Friend> list_model;

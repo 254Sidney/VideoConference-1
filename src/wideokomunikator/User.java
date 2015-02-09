@@ -57,6 +57,9 @@ public class User implements Serializable,Comparable<User>{
         int i = getLAST_NAME().compareTo(o.getLAST_NAME());
         if(i==0){
             i = getFIRST_NAME().compareTo(o.getLAST_NAME());
+            if(i==0){
+                i = getEMAIL().compareTo(o.getEMAIL());
+            }
         }
         return i;
     }

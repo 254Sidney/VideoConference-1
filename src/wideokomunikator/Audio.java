@@ -40,7 +40,7 @@ public class Audio {
     }
 
     private Mixer.Info[] getDevices() throws LineUnavailableException {
-        ArrayList<Mixer.Info> lines = new ArrayList();
+        ArrayList<Mixer.Info> lines = new ArrayList<Mixer.Info>();
         Mixer.Info[] mixerInfos = AudioSystem.getMixerInfo();
         for (Mixer.Info info : mixerInfos) {
             Mixer m = AudioSystem.getMixer(info);

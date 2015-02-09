@@ -5,12 +5,15 @@ import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.io.IOException;
 import javax.sound.sampled.TargetDataLine;
+import wideokomunikator.client.Client;
+import wideokomunikator.server.Server;
 
 public class main {
     private static AudioVideo audio;
     private static wideokomunikator.server.conference.Server server;
     static TargetDataLine microphone = null;
     public static void main(String[] args) {
+        /*
         try {
             server = new wideokomunikator.server.conference.Server();
             new Thread(server).start();
@@ -40,7 +43,8 @@ public class main {
             
         });
         //audio.stop();
-            /*
+        */
+            
             try {
             new Server(5000).start();
             } catch (IOException ex) {
@@ -50,8 +54,8 @@ public class main {
             //ConferenceView panel = new ConferenceView(720,480);
             //panel.setVisible(true);
             
-            Client c = new Client();
-            */           
+            //Client c = new Client();
+                      
     }
     
     

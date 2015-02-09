@@ -3,6 +3,8 @@ package wideokomunikator.server.conference;
 import com.xuggle.ferry.IBuffer;
 import com.xuggle.xuggler.*;
 import com.xuggle.xuggler.Utils;
+import com.xuggle.xuggler.video.ConverterFactory;
+import com.xuggle.xuggler.video.IConverter;
 import java.awt.image.BufferedImage;
 import java.io.*;
 import java.net.*;
@@ -27,37 +29,19 @@ public class Server extends JFrame implements Runnable {
     private ConferenceView view;
     private SourceDataLine speakers = null;
     private AudioFormat audioFormat = null;
+    private IStreamCoder audioCoder;
+    private IStreamCoder videoCoder;
 
     public Server() throws SocketException, IOException {
         datagram_socket = new DatagramSocket(30000);
         datagram_socket2 = new DatagramSocket(30001);
 
-        videoCoder = IStreamCoder.make(IStreamCoder.Direction.DECODING, ICodec.ID.CODEC_ID_H264);
-        videoCoder.setWidth(640);
-        videoCoder.setHeight(480);
-        IRational frameRate = IRational.make(30, 1);
-        videoCoder.setPixelType(IPixelFormat.Type.YUV420P);
-        videoCoder.setNumPicturesInGroupOfPictures(10);
-        videoCoder.setBitRate(512000);
-        videoCoder.setBitRateTolerance(128000);
-        videoCoder.setFrameRate(frameRate);
-        videoCoder.setTimeBase(IRational.make(1, 30));
-        videoCoder.setAutomaticallyStampPacketsForStream(true);
-        IMetaData videocodecOptions = IMetaData.make();
-        videocodecOptions.setValue("tune", "zerolatency");
-        videoCoder.open(videocodecOptions, null);
+        videoCoder = IStreamCoder.make(IStreamCoder.Direction.DECODING, ICodec.ID.CODEC_ID_H264);        
+        videoCoder.open(null, null);
 
         audioCoder = IStreamCoder.make(IStreamCoder.Direction.DECODING, ICodec.ID.CODEC_ID_AAC);
-        audioCoder.setSampleRate((int) 48000);
-        audioCoder.setBitRate(128000);
-        audioCoder.setBitRateTolerance(90000);
         audioCoder.setChannels(2);
-        audioCoder.setFrameRate(IRational.make(48000, 1));
-        audioCoder.setAutomaticallyStampPacketsForStream(true);
-        audioCoder.setSampleFormat(IAudioSamples.Format.FMT_S16);
-        IMetaData audiocodecOptions = IMetaData.make();
-        audiocodecOptions.setValue("tune", "zerolatency");
-        audioCoder.open(audiocodecOptions, null);
+        audioCoder.open(null, null);
 
         audioFormat = new AudioFormat(48000, 16, 2, true, true);
         try {
@@ -65,13 +49,6 @@ public class Server extends JFrame implements Runnable {
             speakers.open(audioFormat);
             speakers.start();
         } catch (LineUnavailableException ex) {
-            ex.printStackTrace();
-        }
-        try {
-            File f = new File("D:/server.aac");
-            f.createNewFile();
-            fos = new FileOutputStream(f);
-        } catch (IOException ex) {
             ex.printStackTrace();
         }
 
@@ -94,30 +71,27 @@ public class Server extends JFrame implements Runnable {
         members.add(m);
     }
 
-    IStreamCoder audioCoder;
-    IStreamCoder videoCoder;
-
     @Override
     public void run() {
 
         new Thread(new Runnable() {
             @Override
             public void run() {
+                byte[] buffer = new byte[DATAGRAM_SIZE];
                 while (active) {
-                    byte[] buffer = new byte[DATAGRAM_SIZE];
-                    while (active) {
-                        DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
-                        try {
-                            datagram_socket.receive(packet);
-                        } catch (IOException ex) {
-                            break;
-                        }
-                        new PacketHendler(packet, false).start();
+                    DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
+                    try {
+                        datagram_socket.receive(packet);
+                    } catch (IOException ex) {
+                        break;
                     }
+                    new PacketHendler(packet, false).start();
                 }
+
             }
         }).start();
         new Thread(new Runnable() {
+
             @Override
             public void run() {
                 byte[] buffer = new byte[DATAGRAM_SIZE];
@@ -138,20 +112,20 @@ public class Server extends JFrame implements Runnable {
                         ipacket.reset();
                     }
                 }
-
             }
         }).start();
 
     }
-    FileOutputStream fos;
 
     private void decodeAudio(IPacket packet) {
-        IAudioSamples audio = IAudioSamples.make(512, 2);
+        IAudioSamples audio = IAudioSamples.make(packet.getData(), audioCoder.getChannels(), audioCoder.getSampleFormat());
         int offset = 0;
         while (offset < packet.getSize()) {
+
+            int bytesDecoded = audioCoder.decodeAudio(audio, packet, offset);
+            offset += bytesDecoded;
+
             try {
-                int bytesDecoded = audioCoder.decodeAudio(audio, packet, offset);
-                offset += bytesDecoded;
                 if (audio.isComplete()) {
                     byte[] bytes = audio.getData().getByteArray(0, audio.getSize());
                     speakers.write(bytes, 0, bytes.length);
@@ -162,6 +136,7 @@ public class Server extends JFrame implements Runnable {
         }
 
     }
+    IConverter videoConverter = null;
 
     private void decodeVideo(IPacket packet) {
         IVideoPicture picture = IVideoPicture.make(videoCoder.getPixelType(), videoCoder.getWidth(), videoCoder.getHeight());
@@ -171,9 +146,10 @@ public class Server extends JFrame implements Runnable {
                 int bytesDecoded = videoCoder.decodeVideo(picture, packet, offset);
                 offset += bytesDecoded;
                 if (picture.isComplete()) {
-                    BufferedImage javaImage = Utils.videoPictureToImage(picture);
-                    view.setImag(javaImage);
-                    WritePicture(javaImage, "Image.png");
+                    videoConverter = ConverterFactory.createConverter(ConverterFactory.XUGGLER_BGR_24, picture);
+                    videoConverter.toImage(picture);
+                    BufferedImage image = videoConverter.toImage(picture);
+                    view.setImag(image);
                 }
             } catch (Exception ex) {
                 ex.printStackTrace();
