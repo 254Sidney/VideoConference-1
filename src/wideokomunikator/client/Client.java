@@ -2,6 +2,8 @@ package wideokomunikator.client;
 
 import java.awt.*;
 import java.awt.event.*;
+import java.beans.PropertyChangeEvent;
+import java.beans.PropertyChangeListener;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -22,9 +24,13 @@ public class Client extends JFrame {
     private ArrayList<Friend> friends;
     private Point location;
     private Dimension window_size;
+    private final String serverAdress;
+    private final int serverPort;
 
-    public Client() {
+    public Client(String serverAdress, int serverPort) {
         friends = new ArrayList<Friend>();
+        this.serverAdress = serverAdress;
+        this.serverPort = serverPort;
         initConnection();
         initComponents();
     }
@@ -33,26 +39,36 @@ public class Client extends JFrame {
         try {
             UIManager.setLookAndFeel("com.sun.java.swing.plaf.windows.WindowsLookAndFeel");
         } catch (Exception ex) {
-            ex.printStackTrace();
+            showErrorDialog(ex.toString());
         }
+        addWindowListener(new WindowAdapter() {
+            @Override
+            public void windowClosing(WindowEvent e) {
+                if (panel_user != null) {
+                    panel_user.view.close();
+                }
+            }
+        });
         setSize(1000, 600);
         setMinimumSize(new Dimension(800, 400));
-        panel_login = new Login();
-        panel_register = new Register();
+        try {
+            panel_login = new Login("wilczynskipio@gmail.com", "komutator2");
+            panel_register = new Register();
+        } catch (IOException ex) {
+            ex.printStackTrace();
+        }
         setInTheMiddle();
         setDefaultCloseOperation(EXIT_ON_CLOSE);
         setPanel(panel_login);
-        //setUser(new User(1, "wilczynskipio@gmail.com", "Piotr", "Wilczyński"));
-        //setPanel(panel_user);
     }
 
     private void initConnection() {
         try {
-            //connection = new ClientConnection("192.168.56.101",5000);
-            connection = new ClientConnection("localhost", 5000);
+            connection = new ClientConnection(serverAdress, serverPort);
             connection.start();
         } catch (IOException ex) {
-            ex.printStackTrace();
+            showErrorDialog("Brak połączenia z serwerem:" + serverAdress + " " + serverPort);
+            System.exit(0);
         }
     }
 
@@ -92,7 +108,6 @@ public class Client extends JFrame {
         setTitle(user.getFIRST_NAME() + " " + user.getLAST_NAME() + " (" + user.getEMAIL() + ")");
         panel_user = new UserPanel();
         getFriends();
-        //panel_user.view.start();
     }
 
     private void getFriends() {
@@ -164,6 +179,7 @@ public class Client extends JFrame {
             friends_panel.setBorder(new BevelBorder(BevelBorder.LOWERED));
             friends_panel.setCellRenderer(new ListCellRenderer<Friend>() {
                 private final Color color = new Color(168, 221, 255);
+
                 @Override
                 public Component getListCellRendererComponent(JList<? extends Friend> list, Friend value, int index, boolean isSelected, boolean cellHasFocus) {
                     Component p = (Component) value;
@@ -171,19 +187,26 @@ public class Client extends JFrame {
                     return p;
                 }
             });
+            friends_panel.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
             initPopup();
             friends_panel.addMouseListener(new MouseAdapter() {
 
                 @Override
                 public void mouseClicked(MouseEvent e) {
                     if (e.getButton() == MouseEvent.BUTTON3) {
-                        friends_panel.setSelectedIndex(friends_panel.locationToIndex(e.getPoint()));
+                        int index = friends_panel.locationToIndex(e.getPoint());
+                        boolean isSelected = friends_panel.isSelectedIndex(index);
+                        if (!isSelected) {
+                            int[] ind = new int[1];
+                            ind[0] = index;
+                            friends_panel.setSelectedIndices(ind);
+                        }
                         popup.show(friends_panel, e.getX(), e.getY());
                     }
                 }
             });
             JScrollPane scroll_pane = new JScrollPane(friends_panel);
-            view = new ConferenceView(600, 600) {
+            view = new ConferenceView() {
                 @Override
                 public void setFullScrean(boolean value) {
                     setFullScreanView(value, this);
@@ -199,7 +222,22 @@ public class Client extends JFrame {
 
             splitpane.setDividerSize(10);
             initMenu();
-
+            connection.addPropertyChangeListener(new PropertyChangeListener() {
+                @Override
+                public void propertyChange(PropertyChangeEvent evt) {
+                    wideokomunikator.net.Frame frame = null;
+                    if (evt.getNewValue() instanceof wideokomunikator.net.Frame) {
+                        frame = (wideokomunikator.net.Frame) evt.getNewValue();
+                        if (frame.getMESSAGE_TITLE() == MESSAGE_TITLES.CONFERENCE_INIT) {
+                            int i = JOptionPane.showConfirmDialog(null, "Właśnie zostałeś dodany do konferencji, czy chcesz dołaczyć?", "Nowa Konferencja", JOptionPane.YES_NO_OPTION);
+                            if (i == JOptionPane.OK_OPTION) {
+                                int port = (int) frame.getMESSAGE();
+                                view.initConnection(serverAdress, port, user.getID());
+                            }
+                        }
+                    }
+                }
+            });
         }
 
         private void initMenu() {
@@ -208,6 +246,13 @@ public class Client extends JFrame {
             JMenu menu;
             JMenuItem item;
             menubar.add(menu = new JMenu("Program"));
+            menu.add(item = new JMenuItem("Zamknij"));
+            item.addActionListener(new ActionListener() {
+                @Override
+                public void actionPerformed(ActionEvent e) {
+                    System.exit(0);
+                }
+            });
             menubar.add(menu = new JMenu("Znajomi"));
             menu.add(item = new JMenuItem("Szukaj"));
             item.addActionListener(new ActionListener() {
@@ -216,7 +261,6 @@ public class Client extends JFrame {
                 public void actionPerformed(ActionEvent e) {
                     search = new SearchDialog() {
                         private SwingWorker<Friend[], Friend> worker;
-                        private ArrayList<Friend> searchlist;
 
                         @Override
                         public void getUsers(final String username) {
@@ -330,7 +374,7 @@ public class Client extends JFrame {
             });
             menubar.add(menu = new JMenu("Konferencje"));
             menubar.add(menu = new JMenu("Widok"));
-            menubar.add(menu = new JMenu("Narzędzia"));
+            //menubar.add(menu = new JMenu("Narzędzia"));
 
         }
 
@@ -338,14 +382,58 @@ public class Client extends JFrame {
             popup = new JPopupMenu("Menu");
             JMenuItem item;
             popup.add(item = new JMenuItem("Rozpocznij Rozmowe"));
+
             item.addActionListener(new ActionListener() {
                 @Override
                 public void actionPerformed(ActionEvent e) {
-                    System.out.println("Wyswietlam Zaznaczone");
-                    for (int i = 0; i < friends_panel.getSelectedValuesList().size(); i++) {
-                        //System.out.println(friends_panel.getSelectedValuesList().get(i).getUser().getEMAIL());
-                    }
+                    new Thread(new Runnable() {
 
+                        @Override
+                        public void run() {
+                            String users = "";
+                            for (int i = 0; i < friends_panel.getSelectedValuesList().size(); i++) {
+                                int user_id = friends_panel.getSelectedValuesList().get(i).getUser().getID();
+                                if (i == 0) {
+                                    users += user_id;
+                                } else {
+                                    users += "\n" + user_id;
+                                }
+                            };
+                            wideokomunikator.net.Frame frame = new wideokomunikator.net.Frame(
+                                    MESSAGE_TYPE.REQUEST,
+                                    user.getID(),
+                                    connection.getNextFrameId(),
+                                    MESSAGE_TITLES.CONFERENCE_INIT, users
+                            );
+                            connection.sendFrame(frame);
+                            int index = frame.getMESSAGE_ID();
+                            int time = wideokomunikator.net.Frame.WAIT_TIME;
+                            while ((frame = connection.getFrame(index)) == null && time > 0) {
+                                try {
+                                    Thread.sleep(10);
+                                } catch (InterruptedException ex) {
+                                }
+                                time -= 10;
+                            }
+                            if (frame == null) {
+                                showErrorDialog("Przekroczono limit czasu oczekiwania na odpowiedź!");
+                                return;
+                            } else if (frame.getMESSAGE_TITLE() == MESSAGE_TITLES.OK) {
+
+                                try {
+                                    int port = (int) frame.getMESSAGE();
+                                    view.initConnection(serverAdress, port, user.getID());
+
+                                } catch (Exception ex) {
+                                    ex.printStackTrace();
+                                    showErrorDialog(ex.getLocalizedMessage());
+                                }
+                            } else if (frame.getMESSAGE_TITLE() == MESSAGE_TITLES.ERROR) {
+                                System.out.println("Błąd "+frame.getMESSAGE());
+                                showErrorDialog(frame.getMESSAGE());
+                            }
+                        }
+                    }).start();
                 }
             });
             popup.add(item = new JMenuItem("Usuń"));
@@ -392,7 +480,7 @@ public class Client extends JFrame {
         private void setFriends(Friend[] list) {
             ArrayList<Friend> l = new ArrayList<Friend>(Arrays.asList(list));
             Collections.sort(l);
-            list_model.removeAllElements();            
+            list_model.removeAllElements();
             for (Friend f : l) {
                 list_model.addElement(f);
             }
@@ -403,27 +491,28 @@ public class Client extends JFrame {
         }
         private SearchDialog search;
         private JSplitPane splitpane;
-        private JList friends_panel;
+        private JList<Friend> friends_panel;
         private DefaultListModel<Friend> list_model;
         private ConferenceView view;
         private JMenuBar menubar;
         private JPopupMenu popup;
     }
 
-    private class Login extends JPanel {
+    private class Login extends BackgroundImagePanel {
 
         private final int COLUMN_SIZE = 20;
         private Font font;
 
-        public Login() {
+        public Login() throws IOException {
             this("", "");
         }
 
-        public Login(String login) {
+        public Login(String login) throws IOException {
             this(login, "");
         }
 
-        public Login(String login, String password) {
+        public Login(String login, String password) throws IOException {
+            super("background.jpg");
             this.email = new JTextField(login);
             this.password = new JPasswordField(password);
             initComponents();
@@ -433,6 +522,7 @@ public class Client extends JFrame {
             JPanel panel = new JPanel();
             this.setLayout(new GridBagLayout());
             this.add(panel);
+            panel.setOpaque(false);
             JLabel label_email = new JLabel("Email");
             font = label_email.getFont();
             font = new Font(font.getName(), font.getStyle(), 24);
@@ -498,18 +588,21 @@ public class Client extends JFrame {
                             Thread.sleep(10);
                             time -= 10;
                         } catch (InterruptedException ex) {
+                            showErrorDialog(ex.toString());
                         }
                     }
+                    button_login.setEnabled(true);
                     if (frame == null) {
                         showErrorDialog("Przekroczono limit czasu oczekiwania na odpowiedź!");
                         return;
                     }
                     User user = null;
-                    try {
-                        user = (User) frame.getMESSAGE();
-                    } catch (Exception e) {
-                    }
                     if (frame.getMESSAGE_TITLE() == MESSAGE_TITLES.LOGIN) {
+                        try {
+                            user = (User) frame.getMESSAGE();
+                        } catch (Exception e) {
+                            showErrorDialog(e.toString());
+                        }
                         if (user != null) {
                             setUser(user);
                             setPanel(panel_user);
@@ -523,7 +616,6 @@ public class Client extends JFrame {
                             showErrorDialog(message);
                         }
                     }
-                    button_login.setEnabled(true);
                 }
             }).start();
         }
@@ -571,12 +663,13 @@ public class Client extends JFrame {
         private JLabel register;
     }
 
-    private class Register extends JPanel {
+    private class Register extends BackgroundImagePanel {
 
         private final int COLUMN_SIZE = 20;
         private Font font;
 
-        public Register() {
+        public Register() throws IOException {
+            super("background.jpg");
             initComponents();
         }
 
@@ -584,6 +677,7 @@ public class Client extends JFrame {
             JPanel panel = new JPanel();
             this.setLayout(new GridBagLayout());
             this.add(panel);
+            panel.setOpaque(false);
             firstname = new JTextField(COLUMN_SIZE);
             lastname = new JTextField(COLUMN_SIZE);
             email = new JTextField(COLUMN_SIZE);
@@ -740,5 +834,5 @@ public class Client extends JFrame {
         private JButton button_register;
         private JLabel login;
     }
-    
+
 }

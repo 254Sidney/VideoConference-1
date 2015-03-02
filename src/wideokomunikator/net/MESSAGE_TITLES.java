@@ -18,6 +18,7 @@ public enum MESSAGE_TITLES {
     FRIENDS_ADD,
     FRIENDS_REMOVE,
     SEARCH,
-    FINISH;
+    FINISH,
+    CONFERENCE_INIT;
     
 }

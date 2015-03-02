@@ -1,70 +1,34 @@
 package wideokomunikator;
 
-import wideokomunikator.audiovideo.AudioVideo;
-import java.awt.event.WindowAdapter;
-import java.awt.event.WindowEvent;
+import com.xuggle.mediatool.IMediaReader;
+import com.xuggle.mediatool.ToolFactory;
 import java.io.IOException;
+import java.io.InputStream;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.util.Properties;
 import javax.sound.sampled.TargetDataLine;
-import wideokomunikator.client.Client;
 import wideokomunikator.server.Server;
+import wideokomunikator.server.conference.Server2;
 
 public class main {
-    private static AudioVideo audio;
-    private static wideokomunikator.server.conference.Server server;
+
     static TargetDataLine microphone = null;
-    public static void main(String[] args) {
-        /*
-        try {
-            server = new wideokomunikator.server.conference.Server();
-            new Thread(server).start();
-        } catch (IOException ex) {
-            ex.printStackTrace();
-        }
-        try {
-            Thread.sleep(1000);
-        } catch (InterruptedException ex) {
-            ex.printStackTrace();
-        }
-        
-        audio = new AudioVideo();
-        audio.record();
-        try {
-            Thread.sleep(5000);
-        } catch (InterruptedException ex) {
-            ex.printStackTrace();
-        }
-        server.addWindowListener(new WindowAdapter() {
 
-            @Override
-            public void windowClosing(WindowEvent e) {
-                audio.stop();
-                server.stopServer();
-            }
-            
-        });
-        //audio.stop();
-        */
-            
-            try {
-            new Server(5000).start();
-            } catch (IOException ex) {
-            ex.printStackTrace();
-            }
-            new wideokomunikator.client.Client().setVisible(true);
-            //ConferenceView panel = new ConferenceView(720,480);
-            //panel.setVisible(true);
-            
-            //Client c = new Client();
-                      
+    public static void main(String[] args) throws UnknownHostException {
+        //new Server(InetAddress.getByName("178.62.207.64"), 5000).start();
+        new Server(InetAddress.getByName("localhost"), 5000).start();
+        //new Server2();
+        new wideokomunikator.client.Client("localhost", 5000).setVisible(true);
+        //new wideokomunikator.client.Client("178.62.207.64", 5000);
+        //new wideokomunikator.client.Client("192.168.2.102", 5000);
+        //new wideokomunikator.client.Client("192.168.2.103", 5000);
+        //new wideokomunikator.client.Client();
+        //ConferenceView panel = new ConferenceView(720,480);
+        //panel.setVisible(true);
+
+        //Client c = new Client();
     }
-    
-    
 
-    @Override
-    protected void finalize() throws Throwable {
-        super.finalize();
-        audio.stop();
-    }
-    
-
+    //192.168.2.110:51870
 }

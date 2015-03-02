@@ -94,8 +94,6 @@ public abstract class SearchDialog extends JDialog{
             @Override
             public void mouseClicked(MouseEvent e) {
                 if(e.getButton()==MouseEvent.BUTTON3){
-                    //popup.setLocation(e.getXOnScreen(), e.getYOnScreen());
-                    //popup.setVisible(true);
                     list.setSelectedIndex(list.locationToIndex(e.getPoint()));
                     popup.show(list, e.getX(), e.getY());
                 }else if (e.getButton()==MouseEvent.BUTTON1) {
@@ -127,12 +125,6 @@ public abstract class SearchDialog extends JDialog{
     
     
     public void setList(Friend[] list){
-        if(list.length==2){
-            for(Friend f:list){
-                System.out.println(f.getUser());
-            }
-        }
-        //System.out.println(list.length);
         ArrayList<Friend> l = new ArrayList<Friend>(Arrays.asList(list));
         for(int i = 0;i<list_model.size();i++){
             Friend f = list_model.get(i);

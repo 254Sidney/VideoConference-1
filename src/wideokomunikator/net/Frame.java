@@ -14,7 +14,7 @@ public class Frame implements Serializable{
     protected final int MESSAGE_ID;
     protected final MESSAGE_TITLES MESSAGE_TITLE;
     protected final Object MESSAGE;
-    public static final int WAIT_TIME = 1000;
+    public static final int WAIT_TIME = 60000;
 
     public Frame() {
         this.MESSAGE_TYPE = null;
@@ -44,6 +44,7 @@ public class Frame implements Serializable{
     public void send(OutputStream output) throws IOException{
         ObjectOutputStream oos = new ObjectOutputStream(output);
         oos.writeObject(this);
+        oos.flush();
     }
 
     @Override
@@ -69,6 +70,11 @@ public class Frame implements Serializable{
     public int getMESSAGE_ID() {
         return MESSAGE_ID;
     }
+
+    public MESSAGE_TYPE getMESSAGE_TYPE() {
+        return MESSAGE_TYPE;
+    }
+    
     
     
     

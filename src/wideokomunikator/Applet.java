@@ -19,7 +19,7 @@ public class Applet extends JApplet {
      * the browser.
      */
     public void init() {
-        new ConferenceView(800, 400);
+        //new ConferenceView();
     }
 
     // TODO overwrite start(), stop() and destroy() methods
