@@ -33,6 +33,7 @@ public class Client extends JFrame {
         this.serverPort = serverPort;
         initConnection();
         initComponents();
+        setVisible(true);
     }
 
     private void initComponents() {

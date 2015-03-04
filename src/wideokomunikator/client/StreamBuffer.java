@@ -1,20 +1,21 @@
 package wideokomunikator.client;
 
-import java.util.HashMap;
 import java.util.Iterator;
-import java.util.Map;
+import java.util.Map.Entry;
+import java.util.concurrent.ConcurrentHashMap;
 
-public class StreamBuffer <T> {
+public class StreamBuffer<T> {
 
-    private int current = -1;
+    private Integer current = -1;
+    private T next = null;
 
-    private HashMap<Integer, T> buffor = null;
+    private ConcurrentHashMap<Integer, T> buffor = null;
 
     public StreamBuffer() {
-        buffor = new HashMap<Integer, T>();
+        buffor = new ConcurrentHashMap<>();
     }
 
-    public void setPacket(int ID, T packet) {
+    public void setPacket(int ID, final T packet) {
         if (ID > current) {
             buffor.put(ID, packet);
         }
@@ -24,31 +25,58 @@ public class StreamBuffer <T> {
         return buffor.getOrDefault(ID, null);
     }
 
-    public synchronized T getNext() {
-        T data = buffor.get(getNextID());
+    public synchronized final T getNext() {
+        T data;
+        data = buffor.get(getNextID());
         current += 1;
         clean();
         return data;
     }
 
-    public synchronized int getNextID() {
+    public T Next() {
+        return next;
+    }
+
+    public int getCurrentID() {
+        return current;
+    }
+
+    public int getNextID() {
         return current + 1;
     }
 
-    public synchronized boolean isNext() {
-        return buffor.get(getNextID()) != null;
+    public boolean isNext() {
+        return (next = buffor.getOrDefault(getNextID(), null)) != null;
     }
-    
-    private synchronized void clean(){
-        Iterator it = buffor.entrySet().iterator();
-        while(it.hasNext()){
-            Map.Entry pair = (Map.Entry)it.next();
-            if(((int)pair.getKey())<current-1){
+
+    public void skip() {
+        if (buffor.isEmpty()) {
+            current += 1;
+        } else {
+            int min = Integer.MAX_VALUE;
+            Iterator<Entry<Integer, T>> it = buffor.entrySet().iterator();
+            while (it.hasNext()) {
+                Entry<Integer, T> item = it.next();
+                if ((item.getKey()) < min) {
+                    min = item.getKey();
+                }
+            }
+            current = min - 1;
+        }
+    }
+
+    private void clean() {
+        Iterator<Entry<Integer, T>> it = buffor.entrySet().iterator();
+        while (it.hasNext()) {
+            Entry<Integer, T> item = it.next();
+            if (item.getKey() < current) {
                 it.remove();
-            }else if(((int)pair.getKey())>=current){
-                return;
             }
         }
     }
-    
+
+    public int size() {
+        return buffor.size();
+    }
+
 }
