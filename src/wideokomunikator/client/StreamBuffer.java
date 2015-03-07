@@ -8,6 +8,7 @@ public class StreamBuffer<T> {
 
     private Integer current = -1;
     private T next = null;
+    private final int maxBuffor = 10;
 
     private ConcurrentHashMap<Integer, T> buffor = null;
 
@@ -15,21 +16,20 @@ public class StreamBuffer<T> {
         buffor = new ConcurrentHashMap<>();
     }
 
-    public void setPacket(int ID, final T packet) {
+    public synchronized void setPacket(int ID, final T packet) {
         if (ID > current) {
             buffor.put(ID, packet);
         }
     }
 
     public T getPacket(int ID) {
-        return buffor.getOrDefault(ID, null);
+        return buffor.get(ID);
     }
 
     public synchronized final T getNext() {
         T data;
         data = buffor.get(getNextID());
         current += 1;
-        clean();
         return data;
     }
 
@@ -46,7 +46,7 @@ public class StreamBuffer<T> {
     }
 
     public boolean isNext() {
-        return (next = buffor.getOrDefault(getNextID(), null)) != null;
+        return (next = buffor.get(getNextID())) != null;
     }
 
     public void skip() {
@@ -65,7 +65,20 @@ public class StreamBuffer<T> {
         }
     }
 
-    private void clean() {
+    public synchronized void lastAvaliable() {
+        int max = Integer.MIN_VALUE;
+        Iterator<Entry<Integer, T>> it = buffor.entrySet().iterator();
+        while (it.hasNext()) {
+            Entry<Integer, T> item = it.next();
+            if ((item.getKey()) > max) {
+                max = item.getKey();
+            }
+        }
+        current = max - 1;
+        clean();
+    }
+
+    public synchronized void clean() {
         Iterator<Entry<Integer, T>> it = buffor.entrySet().iterator();
         while (it.hasNext()) {
             Entry<Integer, T> item = it.next();

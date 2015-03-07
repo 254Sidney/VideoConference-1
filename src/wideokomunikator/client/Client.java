@@ -9,11 +9,13 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.concurrent.ExecutionException;
+import javax.imageio.ImageIO;
 import javax.swing.*;
 import javax.swing.border.BevelBorder;
 import javax.swing.border.EmptyBorder;
 import wideokomunikator.User;
 import static wideokomunikator.exception.DatabaseException.*;
+import wideokomunikator.main;
 import wideokomunikator.net.MESSAGE_TITLES;
 import wideokomunikator.net.MESSAGE_TYPE;
 
@@ -83,6 +85,7 @@ public class Client extends JFrame {
     public void setFullScreanView(boolean value, ConferenceView component) {
         dispose();
         setUndecorated(value);
+        panel_user.menubar.setVisible(!value);
         if (value) {
             window_size = getSize();
             location = getLocation();
@@ -269,8 +272,8 @@ public class Client extends JFrame {
                                 worker.cancel(true);
                             }
 
-                            ArrayList<Friend> list = new ArrayList<Friend>();
                             worker = new SwingWorker<Friend[], Friend>() {
+                                ArrayList<Friend> list = new ArrayList<Friend>();
 
                                 @Override
                                 protected Friend[] doInBackground() throws Exception {
@@ -332,7 +335,7 @@ public class Client extends JFrame {
                         }
 
                         @Override
-                        public void addUser(User friend) {
+                        public void addUser(final User friend) {
                             new Thread(new Runnable() {
                                 @Override
                                 public void run() {
@@ -430,7 +433,7 @@ public class Client extends JFrame {
                                     showErrorDialog(ex.getLocalizedMessage());
                                 }
                             } else if (frame.getMESSAGE_TITLE() == MESSAGE_TITLES.ERROR) {
-                                System.out.println("Błąd "+frame.getMESSAGE());
+                                System.out.println("Błąd " + frame.getMESSAGE());
                                 showErrorDialog(frame.getMESSAGE());
                             }
                         }
@@ -513,7 +516,7 @@ public class Client extends JFrame {
         }
 
         public Login(String login, String password) throws IOException {
-            super("background.jpg");
+            super(ImageIO.read(main.class.getResource("images/background.png")));
             this.email = new JTextField(login);
             this.password = new JPasswordField(password);
             initComponents();
@@ -570,7 +573,7 @@ public class Client extends JFrame {
             initActions();
         }
 
-        private void login(String email, char[] password) {
+        private void login(final String email, final char[] password) {
             new Thread(new Runnable() {
                 @Override
                 public void run() {
@@ -670,7 +673,7 @@ public class Client extends JFrame {
         private Font font;
 
         public Register() throws IOException {
-            super("background.jpg");
+            super(ImageIO.read(main.class.getResource("images/background.png")));
             initComponents();
         }
 
@@ -772,7 +775,7 @@ public class Client extends JFrame {
             });
         }
 
-        private void register(String email, String firstname, String lastname, char[] password) {
+        private void register(final String email, final String firstname, final String lastname, final char[] password) {
             new Thread(new Runnable() {
 
                 @Override

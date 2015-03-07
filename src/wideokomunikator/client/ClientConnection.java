@@ -55,7 +55,7 @@ public class ClientConnection extends Thread {
         requests = new Hashtable<Integer, Frame>();
     }
 
-    public void sendFrame(Frame frame_to_send) {
+    public void sendFrame(final Frame frame_to_send) {
         frame_id = getNextFrameId();
         new Thread(new Runnable() {
             @Override
@@ -64,8 +64,9 @@ public class ClientConnection extends Thread {
                     try {
                         Thread.sleep(10);
                     } catch (InterruptedException ex) {
-                        JOptionPane.showMessageDialog(null, "Przerwano połaczenie z serwerem "+ex.getMessage(), "Bład", JOptionPane.ERROR_MESSAGE);
+                        JOptionPane.showMessageDialog(null, "Przerwano połaczenie z serwerem " + ex.getMessage(), "Bład", JOptionPane.ERROR_MESSAGE);
                         ex.printStackTrace();
+                        active = false;
                     }
                 }
                 frame = frame_to_send;
@@ -87,7 +88,8 @@ public class ClientConnection extends Thread {
                     if (frame == null) {
                         try {
                             Thread.sleep(10);
-                        } catch (InterruptedException ex) {}
+                        } catch (InterruptedException ex) {
+                        }
                     } else {
                         try {
                             requests.put(frame.getMESSAGE_ID(), frame);
@@ -96,6 +98,7 @@ public class ClientConnection extends Thread {
                         } catch (IOException ex) {
                             JOptionPane.showMessageDialog(null, "Przerwano połaczenie z serwerem " + ex.getMessage(), "Bład", JOptionPane.ERROR_MESSAGE);
                             ex.printStackTrace();
+                            active = false;
                         }
                     }
                 }
@@ -107,7 +110,7 @@ public class ClientConnection extends Thread {
             public void run() {
                 while (active) {
                     try {
-                        Frame f = new Frame(server_in);
+                        final Frame f = new Frame(server_in);
                         if (f.getMESSAGE_TYPE() == REQUEST) {
                             Frame old = serverRequest;
                             serverRequest = f;
@@ -143,6 +146,7 @@ public class ClientConnection extends Thread {
                     } catch (ClassNotFoundException | IOException ex) {
                         JOptionPane.showMessageDialog(null, "Przerwano połaczenie z serwerem " + ex.getMessage(), "Bład", JOptionPane.ERROR_MESSAGE);
                         ex.printStackTrace();
+                        active = false;
                     }
 
                 }
@@ -171,7 +175,7 @@ public class ClientConnection extends Thread {
                 server_out.close();
                 server.close();
             } catch (IOException ex) {
-                JOptionPane.showMessageDialog(null, "Połaczenia zamkniete uruchom program ponownie "+ex.getMessage(), "Bład", JOptionPane.ERROR_MESSAGE);
+                JOptionPane.showMessageDialog(null, "Połaczenia zamkniete uruchom program ponownie " + ex.getMessage(), "Bład", JOptionPane.ERROR_MESSAGE);
                 ex.printStackTrace();
             }
         }

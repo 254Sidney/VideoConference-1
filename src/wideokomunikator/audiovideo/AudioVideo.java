@@ -1,14 +1,11 @@
 package wideokomunikator.audiovideo;
 
-import com.xuggle.ferry.IBuffer;
 import com.xuggle.xuggler.*;
 import com.xuggle.xuggler.video.*;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
 import java.net.*;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -21,7 +18,6 @@ import wideokomunikator.client.StreamBuffer;
 
 public class AudioVideo {
 
-    long ct = System.currentTimeMillis();
     //Audio
     private SourceDataLine speakers = null;
     private TargetDataLine microphone = null;
@@ -127,10 +123,14 @@ public class AudioVideo {
             coder.setChannels(channels);
             coder.setFlag(IStreamCoder.Flags.FLAG2_FAST, true);
             coder.setFlag(IStreamCoder.Flags.FLAG_LOW_DELAY, true);
+            coder.setProperty("me_method", "+zero");
         } else {
             coder = IStreamCoder.make(IStreamCoder.Direction.DECODING, audioCodec);
             coder.setSampleRate((int) sampleRate);
             coder.setChannels(channels);
+            coder.setFlag(IStreamCoder.Flags.FLAG2_FAST, true);
+            coder.setFlag(IStreamCoder.Flags.FLAG_LOW_DELAY, true);
+            coder.setProperty("me_method", "+zero");
         }
         return coder;
     }
@@ -145,7 +145,7 @@ public class AudioVideo {
             coder.setBitRate(64000);
             coder.setBitRateTolerance(32000);
             coder.setFrameRate(frameRate);
-            coder.setNumPicturesInGroupOfPictures(3);
+            coder.setNumPicturesInGroupOfPictures(2);
             coder.setTimeBase(IRational.make(1, (int) camera.getFrameRate()));
             coder.setFlag(IStreamCoder.Flags.FLAG_LOW_DELAY, true);
             coder.setFlag(IStreamCoder.Flags.FLAG2_FAST, true);
@@ -159,21 +159,26 @@ public class AudioVideo {
         return coder;
     }
 
-    private boolean hasDecoders(int UserID) {
-        return videoDecoder.getOrDefault(UserID, null) != null && audioDecoder.getOrDefault(UserID, null) != null;
-    }
-
-    private void getDecoders(int UserID) {
-        if (videoDecoder.getOrDefault(UserID, null) == null) {
+    private void getDecoders(int UserID, boolean isAudio) {
+        if (!isAudio) {
             IStreamCoder coder = null;
             coder = initVideoCoder(coder, false);
             coder.open(null, null);
             videoDecoder.put(UserID, coder);
-        }
-        if (audioDecoder.getOrDefault(UserID, null) == null) {
+        } else {
             IStreamCoder coder = null;
+            IMetaData audiocodecOptions = IMetaData.make();
+            audiocodecOptions.setValue("strict", "2");
+            audiocodecOptions.setValue("tune", "zerolatency");
+            audiocodecOptions.setValue("preset", "ultrafast");
+            audiocodecOptions.setValue("profile:a", "aac_eld");
+            audiocodecOptions.setValue("compression_level", "9");
+            audiocodecOptions.setValue("frame_duration", "2.5");
+            audiocodecOptions.setValue("application", "lowdelay");
+            audiocodecOptions.setValue("enable", "libcelt");
+            audiocodecOptions.setValue("thread_type", "slice");
             coder = initAudioCoder(coder, false);
-            coder.open(null, null);
+            coder.open(audiocodecOptions, null);
             audioDecoder.put(UserID, coder);
         }
     }
@@ -181,10 +186,6 @@ public class AudioVideo {
     public void record() {
 
         boolean devicesOk = initDevices();
-        if (!devicesOk) {
-            System.out.println("Niesprawne urzadzenie " + readyCamera + " " + readyMicrophone + " " + readySpeakers);
-            return;
-        }
         audioCoder = initAudioCoder(audioCoder, true);
         videoCoder = initVideoCoder(videoCoder, true);
         IMetaData videocodecOptions = IMetaData.make();
@@ -194,22 +195,26 @@ public class AudioVideo {
         audiocodecOptions.setValue("strict", "2");
         audiocodecOptions.setValue("tune", "zerolatency");
         audiocodecOptions.setValue("preset", "ultrafast");
-
+        audiocodecOptions.setValue("profile:a", "aac_eld");
+        audiocodecOptions.setValue("compression_level", "9");
+        audiocodecOptions.setValue("frame_duration", "2.5");
+        audiocodecOptions.setValue("application", "lowdelay");
         audioCoder.open(audiocodecOptions, null);
         videoCoder.open(videocodecOptions, null);
         thread_audio = new Thread(new Runnable() {
             @Override
             public void run() {
-                int size = microphone.getBufferSize()/5;
+                int size = microphone.getBufferSize()/10;
                 byte[] data = new byte[size];
                 short[] audioSamples = new short[size / (sampleSize / 8)];
                 long ct = System.currentTimeMillis();
-                microphone.start();
+                //microphone.start();
                 IPacket packet = IPacket.make(100);
                 IAudioSamples sample = IAudioSamples.make(audioSamples.length, channels);
                 while (record) {
                     microphone.read(data, 0, data.length);
                     long now = System.currentTimeMillis();
+                    //speakers.write(data, 0, data.length);
                     audioSamples = toShort(data);
                     sample.put(audioSamples, 0, 0, audioSamples.length);
                     sample.setComplete(true, audioSamples.length / channels, (int) sampleRate, channels, IAudioSamples.Format.FMT_S16, IAudioSamples.defaultPtsToSamples(now - ct, (int) sampleRate));
@@ -234,6 +239,7 @@ public class AudioVideo {
                 IConverter converter = null;
                 IVideoPicture pictureSample;
                 IPacket packet = IPacket.make();
+                long ct = System.currentTimeMillis();
                 while (record) {
                     try {
                         image = camera.grab().getBufferedImage();
@@ -275,28 +281,35 @@ public class AudioVideo {
             }
         }
         );
-        ct = System.currentTimeMillis();
-        StartAudioReceiveThread();
         StartVideoReceiveThread();
-        startAudioSendingThread();
-        //startVideoSendingThread();
+        StartAudioReceiveThread();
         if (readyMicrophone) {
+            startAudioSendingThread();
             thread_audio.start();
         }
         if (readyCamera) {
-            //thread_video.start();
+            startVideoSendingThread();
+            thread_video.start();
         }
     }
     int frames = 0;
 
     private void startVideoSendingThread() {
-        new Thread(new Runnable() {
+        Thread thread = new Thread(new Runnable() {
             @Override
             public void run() {
                 while (record) {
                     if (bufferVideo.size() > 0) {
                         Packet packet = bufferVideo.remove(0);
-                        sendPacket(packet, false);
+                        byte[] message = packet.getDataToSend(VideoPacketCounter);
+                        DatagramPacket datagram;
+                        VideoPacketCounter = getNextVideoPacket();
+                        try {
+                            datagram = new DatagramPacket(message, message.length, new InetSocketAddress(serverHost, serverPortVideo));
+                            datagram_socket_video.send(datagram);
+                        } catch (IOException ex) {
+                            ex.printStackTrace();
+                        }
                     } else {
                         try {
                             Thread.sleep(10);
@@ -306,17 +319,26 @@ public class AudioVideo {
                     }
                 }
             }
-        }).start();
+        });
+        thread.start();
     }
 
     private void startAudioSendingThread() {
-        new Thread(new Runnable() {
+        Thread thread = new Thread(new Runnable() {
             @Override
             public void run() {
                 while (record) {
                     if (bufferAudio.size() > 0) {
                         Packet packet = bufferAudio.remove(0);
-                        sendPacket(packet, true);
+                        byte[] message = packet.getDataToSend(AudioPacketCounter);
+                        DatagramPacket datagram;
+                        AudioPacketCounter = getNextAudioPacket();
+                        try {
+                            datagram = new DatagramPacket(message, message.length, new InetSocketAddress(serverHost, serverPortAudio));
+                            datagram_socket_audio.send(datagram);
+                        } catch (IOException ex) {
+                            ex.printStackTrace();
+                        }
                     } else {
                         try {
                             Thread.sleep(10);
@@ -326,7 +348,9 @@ public class AudioVideo {
                     }
                 }
             }
-        }).start();
+        });
+        thread.setPriority(9);
+        thread.start();
     }
 
     private void decodeAudio(Packet packet, int UserID) {
@@ -341,20 +365,19 @@ public class AudioVideo {
                 if (audio.isComplete()) {
                     byte[] bytes = audio.getData().getByteArray(0, audio.getSize());
                     speakers.write(bytes, 0, bytes.length);
-                    audio.delete();
                 }
             } catch (Exception ex) {
                 ex.printStackTrace();
             }
         }
+        audio.delete();
         ipacket.delete();
-
     }
 
     private void decodeVideo(Packet packet, int UserID) {
         IPacket ipacket = packet.getIPacket();
         IVideoPicture picture = IVideoPicture.make(IPixelFormat.Type.YUV420P, 320, 240);
-        if (videoDecoder.getOrDefault(UserID, null) != null) {
+        if (videoDecoder.get(UserID) != null) {
             int offset = 0;
             while (offset < ipacket.getSize()) {
                 try {
@@ -386,29 +409,6 @@ public class AudioVideo {
         ImageIO.write(image, "png", file);
     }
 
-    private void sendPacket(Packet packet, boolean isAudio) {
-        int packetNR = isAudio ? AudioPacketCounter : VideoPacketCounter;
-        byte[] message = packet.getDataToSend(packetNR);
-        DatagramPacket datagram;
-        if (isAudio) {
-            AudioPacketCounter = getNextAudioPacket();
-            try {
-                datagram = new DatagramPacket(message, message.length, new InetSocketAddress(serverHost, serverPortAudio));
-                datagram_socket_audio.send(datagram);
-            } catch (IOException ex) {
-                ex.printStackTrace();
-            }
-        } else {
-            VideoPacketCounter = getNextVideoPacket();
-            try {
-                datagram = new DatagramPacket(message, message.length, new InetSocketAddress(serverHost, serverPortVideo));
-                datagram_socket_video.send(datagram);
-            } catch (IOException ex) {
-                ex.printStackTrace();
-            }
-        }
-    }
-
     private SourceDataLine getSpeaker() throws LineUnavailableException {
         DataLine.Info dataLineInfo = new DataLine.Info(SourceDataLine.class, audioFormat);
         speakers = (SourceDataLine) AudioSystem.getLine(dataLineInfo);
@@ -431,7 +431,7 @@ public class AudioVideo {
     }
 
     private void initMicrophone(TargetDataLine microphone) throws LineUnavailableException {
-        microphone.open(audioFormat);
+        microphone.open(audioFormat,800);
     }
 
     private TargetDataLine getMicrophone(Mixer.Info mixerInfo) throws LineUnavailableException {
@@ -489,7 +489,7 @@ public class AudioVideo {
     }
 
     private void StartAudioReceiveThread() {
-        new Thread(new Runnable() {
+        Thread thread = new Thread(new Runnable() {
             @Override
             public void run() {
                 while (record) {
@@ -503,7 +503,9 @@ public class AudioVideo {
                     }
                 }
             }
-        }).start();
+        });
+        thread.setPriority(9);
+        thread.start();
     }
 
     private void StartVideoReceiveThread() {
@@ -524,20 +526,22 @@ public class AudioVideo {
         }).start();
     }
 
-    private void StartVideoDecodeThread(int ID) {
+    private void StartVideoDecodeThread(final int ID) {
         new Thread(new Runnable() {
-            final int UserID = ID;
-            final int timeout = 2000;
-            boolean keypacket = false;
+            private final int UserID = ID;
+            private final int timeout = 2000;
+            private final int maxPackets = 10;
 
             @Override
             public void run() {
                 int time = 0;
+                boolean keypacket = false;
+                boolean isNext;
                 while (record) {
+                    Packet packet = null;
                     synchronized (buffersVideoReceive.get(UserID)) {
-                        StreamBuffer<Packet> streambuffer = buffersVideoReceive.get(UserID);
-                        if (streambuffer.isNext()) {
-                            Packet packet = streambuffer.getNext();
+                        if (isNext = buffersVideoReceive.get(UserID).isNext()) {
+                            packet = buffersVideoReceive.get(UserID).getNext();
                             if (packet.isKeyPacket()) {
                                 keypacket = true;
                             }
@@ -545,67 +549,86 @@ public class AudioVideo {
                                 decodeVideo(packet, UserID);
                             }
                             time = 0;
+                        }
+                    }
+                    if (!isNext) {
+                        buffersVideoReceive.get(UserID).clean();
+                        if (buffersVideoReceive.get(UserID).size() > maxPackets) {
+                            buffersVideoReceive.get(UserID).lastAvaliable();
+                            keypacket = false;
+                            time = 0;
+                        }
+                        if (time >= timeout) {
+                            buffersVideoReceive.get(UserID).skip();
+                            System.out.println("skipVideo");
+                            keypacket = false;
+                            time = 0;
                         } else {
-                            if (time >= timeout) {
-                                streambuffer.skip();
-                                keypacket = false;
-                                time = 0;
-                            } else {
-                                try {
-                                    Thread.sleep(10);
-                                    time += 10;
-                                } catch (InterruptedException ex) {
-                                    ex.printStackTrace();
-                                }
+                            try {
+                                Thread.sleep(10);
+                                time += 10;
+                            } catch (InterruptedException ex) {
+                                ex.printStackTrace();
                             }
                         }
-
                     }
+
                 }
             }
         }).start();
     }
 
-    private void StartAudioDecodeThread(int ID) {
-        new Thread(new Runnable() {
-            final int timeout = 2000;
-            boolean keypacket = false;
+    private void StartAudioDecodeThread(final int ID) {
+        Thread thread = new Thread(new Runnable() {
+            private final int UserID = ID;
+            private final int timeout = 1000;
+            private final int maxPackets = 10;
 
             @Override
             public void run() {
                 int time = 0;
+                boolean keypacket = false;
+                boolean isNext;
                 while (record) {
-                    StreamBuffer<Packet> streambuffer = buffersAudioReceive.get(ID);
-                    synchronized (buffersAudioReceive.get(ID)) {
-                        Packet packet;
-                        if (streambuffer.isNext()) {
-                            packet = streambuffer.getNext();
+                    Packet packet = null;
+                    synchronized (buffersAudioReceive.get(UserID)) {
+                        if (isNext = buffersAudioReceive.get(UserID).isNext()) {
+                            packet = buffersAudioReceive.get(UserID).getNext();
                             if (packet.isKeyPacket()) {
                                 keypacket = true;
                             }
                             if (keypacket) {
-                                decodeAudio(packet, ID);
+                                decodeAudio(packet, UserID);
                             }
                             time = 0;
+                        }
+                    }
+                    if (!isNext) {
+                        buffersAudioReceive.get(UserID).clean();
+                        if (buffersAudioReceive.get(UserID).size() > maxPackets) {
+                            buffersAudioReceive.get(UserID).lastAvaliable();
+                            keypacket = false;
+                            time = 0;
+                        }
+                        if (time >= timeout) {
+                            buffersAudioReceive.get(UserID).skip();
+                            System.out.println("skipAudio");
+                            keypacket = false;
+                            time = 0;
                         } else {
-                            if (time >= timeout) {
-                                streambuffer.skip();
-                                System.out.println("skipAudio");
-                                keypacket = false;
-                                time = 0;
-                            } else {
-                                try {
-                                    Thread.sleep(10);
-                                    time += 10;
-                                } catch (InterruptedException ex) {
-                                    ex.printStackTrace();
-                                }
+                            try {
+                                Thread.sleep(10);
+                                time += 10;
+                            } catch (InterruptedException ex) {
+                                ex.printStackTrace();
                             }
                         }
                     }
                 }
             }
-        }).start();
+        });
+        thread.setPriority(9);
+        thread.start();
     }
 
     private synchronized int getNextAudioPacket() {
@@ -635,18 +658,23 @@ public class AudioVideo {
         }
 
         @Override
-        public void run() {            
+        public void run() {
             Packet packet = new Packet(data);
-            if (hasDecoders(packet.getUserID()) == false) {
-                getDecoders(packet.getUserID());
-                buffersVideoReceive.put(packet.getUserID(), new StreamBuffer<>());
-                buffersAudioReceive.put(packet.getUserID(), new StreamBuffer<>());
-                StartVideoDecodeThread(packet.getUserID());
-                StartAudioDecodeThread(packet.getUserID());
-            }
+
             if (isAudio) {
+                if (buffersAudioReceive.get(packet.getUserID()) == null) {
+                    getDecoders(packet.getUserID(), isAudio);
+                    buffersAudioReceive.put(packet.getUserID(), new StreamBuffer<Packet>());
+                    StartAudioDecodeThread(packet.getUserID());
+
+                }
                 buffersAudioReceive.get(packet.getUserID()).setPacket(packet.getPacketId(), packet);
             } else {
+                if (buffersVideoReceive.get(packet.getUserID()) == null) {
+                    getDecoders(packet.getUserID(), isAudio);
+                    buffersVideoReceive.put(packet.getUserID(), new StreamBuffer<Packet>());
+                    StartVideoDecodeThread(packet.getUserID());
+                }
                 buffersVideoReceive.get(packet.getUserID()).setPacket(packet.getPacketId(), packet);;
             }
 

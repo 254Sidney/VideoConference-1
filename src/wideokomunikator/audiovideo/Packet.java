@@ -80,8 +80,6 @@ public class Packet implements Serializable {
         byte[] counter = ByteBuffer.allocate(4).order(ByteOrder.BIG_ENDIAN).putInt(PacketId).array();
         byte[] userID = ByteBuffer.allocate(4).order(ByteOrder.BIG_ENDIAN).putInt(UserID).array();
         byte[] key = ByteBuffer.allocate(1).order(ByteOrder.BIG_ENDIAN).put(KeyPacket == true ? (byte) 1 : (byte) 0).array();
-        //byte isKey = (byte)1;//;
-        //System.out.println(isKey);
         byte[] message = new byte[Data.length + counter.length + userID.length + key.length];
         System.arraycopy(userID, 0, message, 0, 4);
         System.arraycopy(counter, 0, message, 4, 4);

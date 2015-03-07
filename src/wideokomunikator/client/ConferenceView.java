@@ -40,7 +40,7 @@ public class ConferenceView extends JPanel {
 
     public ConferenceView() {
         initComponents();
-        
+
     }
 
     @Override
@@ -107,16 +107,16 @@ public class ConferenceView extends JPanel {
             ex.printStackTrace();
         }
         try {
-            String serverID = getMessage("init\n"+UserID);
-            String[] prop = serverID.split("\n");            
-            audiovideo = new AudioVideo(UserID,host,Integer.parseInt(prop[0]),Integer.parseInt(prop[1])){
+            String serverID = getMessage("init\n" + UserID);
+            String[] prop = serverID.split("\n");
+            audiovideo = new AudioVideo(UserID, host, Integer.parseInt(prop[0]), Integer.parseInt(prop[1])) {
 
                 @Override
                 public void setImage(BufferedImage image2, int ID) {
                     image = image2;
                     repaint();
                 }
-                
+
             };
             audiovideo.record();
         } catch (SocketTimeoutException ex) {
@@ -128,9 +128,9 @@ public class ConferenceView extends JPanel {
     byte[] buffer = new byte[DATAGRAM_SIZE];
 
     private synchronized String getMessage(String message) throws SocketTimeoutException {
-        DatagramPacket packetToSend = new DatagramPacket(message.getBytes(), message.getBytes().length, serverAdress);
         DatagramPacket packetReceived = new DatagramPacket(buffer, buffer.length);
         try {
+            DatagramPacket packetToSend = new DatagramPacket(message.getBytes(), message.getBytes().length, serverAdress);
             serverSocket.setSoTimeout(1000);
             serverSocket.send(packetToSend);
             serverSocket.receive(packetReceived);
@@ -144,15 +144,11 @@ public class ConferenceView extends JPanel {
 
     }
 
-
-    
-    public void close(){
-        if(audiovideo!=null)
+    public void close() {
+        if (audiovideo != null) {
             audiovideo.stop();
-        
+        }
+
     }
-
-
-
 
 }

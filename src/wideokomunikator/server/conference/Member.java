@@ -5,11 +5,8 @@ import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.SocketException;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 
 public class Member extends Thread {
 
@@ -112,18 +109,14 @@ public class Member extends Thread {
 
         @Override
         public void run() {
-
-            int packetID = ByteBuffer.wrap(Arrays.copyOfRange(data, 4, 8)).order(ByteOrder.BIG_ENDIAN).getInt();
             for (Member m : users) {
                 if (m.UserID == UserID) {
                     int port = isAudio ? m.audioPort : m.videoPort;
                     InetAddress host = m.host;
                     if (host != null && port != -1) {
-                        DatagramSocket datagramsocket = (isAudio ? m.audioSocket : m.videoSocket);                        
+                        DatagramSocket datagramsocket = (isAudio ? m.audioSocket : m.videoSocket);
                         DatagramPacket packet = new DatagramPacket(data, data.length, host, port);
                         try {
-                            if (packetID == 0) {
-                            }
                             datagramsocket.send(packet);
                         } catch (IOException ex) {
                         }
