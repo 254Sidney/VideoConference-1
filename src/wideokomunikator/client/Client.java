@@ -9,6 +9,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.concurrent.ExecutionException;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import javax.imageio.ImageIO;
 import javax.swing.*;
 import javax.swing.border.BevelBorder;
@@ -28,6 +30,7 @@ public class Client extends JFrame {
     private Dimension window_size;
     private final String serverAdress;
     private final int serverPort;
+    private boolean active = true;
 
     public Client(String serverAdress, int serverPort) {
         friends = new ArrayList<Friend>();
@@ -40,7 +43,7 @@ public class Client extends JFrame {
 
     private void initComponents() {
         try {
-            UIManager.setLookAndFeel("com.sun.java.swing.plaf.windows.WindowsLookAndFeel");
+            UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
         } catch (Exception ex) {
             showErrorDialog(ex.toString());
         }
@@ -48,6 +51,7 @@ public class Client extends JFrame {
             @Override
             public void windowClosing(WindowEvent e) {
                 if (panel_user != null) {
+                    active = false;
                     panel_user.view.close();
                 }
             }
@@ -144,7 +148,9 @@ public class Client extends JFrame {
                     frame = f;
                     if (frame.getMESSAGE_TITLE() == MESSAGE_TITLES.FRIENDS_LIST) {
                         User user = (User) frame.getMESSAGE();
-                        list.add(new Friend(user));
+                        Friend friend = new Friend(user);
+                        list.add(friend);
+                        panel_user.setActivity(friend);
                     } else if (frame.getMESSAGE_TITLE() == MESSAGE_TITLES.ERROR) {
                         showErrorDialog(frame.getMESSAGE());
                     } else if (frame.getMESSAGE_TITLE() == MESSAGE_TITLES.FINISH) {
@@ -154,10 +160,8 @@ public class Client extends JFrame {
                 Collections.sort(list);
                 friends = list;
                 panel_user.setFriends(friends.toArray(new Friend[friends.size()]));
-
             }
         }).start();
-
     }
 
     private void showErrorDialog(Object error) {
@@ -174,6 +178,9 @@ public class Client extends JFrame {
 
     private class UserPanel extends JPanel {
 
+        private final long FriendsActivityUpdate = 1000;
+        private Thread FriendsActivityThread;
+
         public UserPanel() {
             initComponents();
         }
@@ -183,13 +190,14 @@ public class Client extends JFrame {
             friends_panel.setBorder(new BevelBorder(BevelBorder.LOWERED));
             friends_panel.setCellRenderer(new ListCellRenderer<Friend>() {
                 private final Color color = new Color(168, 221, 255);
-
+                
                 @Override
                 public Component getListCellRendererComponent(JList<? extends Friend> list, Friend value, int index, boolean isSelected, boolean cellHasFocus) {
-                    Component p = (Component) value;
+                    Friend p = value;
                     p.setBackground(isSelected ? color : Color.WHITE);
                     return p;
                 }
+
             });
             friends_panel.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
             initPopup();
@@ -242,6 +250,7 @@ public class Client extends JFrame {
                     }
                 }
             });
+            startActivityThread();
         }
 
         private void initMenu() {
@@ -493,6 +502,59 @@ public class Client extends JFrame {
         public ConferenceView getView() {
             return view;
         }
+
+        private void startActivityThread() {
+            FriendsActivityThread = new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    while (active) {
+                        for(int i=0;i<list_model.size();i++){
+                            setActivity(list_model.get(i));
+                            friends_panel.repaint(friends_panel.getCellBounds(i, i));
+                        }
+                        try {
+                            Thread.sleep(FriendsActivityUpdate);
+                        } catch (InterruptedException ex) {}
+                    }
+                }
+            });
+            FriendsActivityThread.start();
+        }
+
+        private void setActivity(Friend friend) {
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    wideokomunikator.net.Frame frame = new wideokomunikator.net.Frame(
+                            MESSAGE_TYPE.REQUEST,
+                            user.getID(),
+                            connection.getNextFrameId(),
+                            MESSAGE_TITLES.FRIEND_ACTIVITY, friend.getUser().getID());
+                    connection.sendFrame(frame);
+                    int index = frame.getMESSAGE_ID();
+                    int time = wideokomunikator.net.Frame.WAIT_TIME;
+                    wideokomunikator.net.Frame f = null;
+                    time = wideokomunikator.net.Frame.WAIT_TIME;
+                    while ((frame = connection.getFrame(index)) == null && time > 0) {
+                        try {
+                            Thread.sleep(10);
+                        } catch (InterruptedException ex) {
+                        }
+                        time -= 10;
+                    }
+                    if (frame == null) {
+                        showErrorDialog("Przekroczono limit czasu oczekiwania na odpowiedź!");
+                        return;
+                    } else if (frame.getMESSAGE_TITLE() == MESSAGE_TITLES.FRIEND_ACTIVITY) {
+                        boolean status = (boolean) frame.getMESSAGE();
+                        friend.setStatus(status);
+                    } else if (frame.getMESSAGE_TITLE() == MESSAGE_TITLES.ERROR) {
+                        showErrorDialog(frame.getMESSAGE());
+                    }
+                }
+            }).start();
+        }
+        
         private SearchDialog search;
         private JSplitPane splitpane;
         private JList<Friend> friends_panel;
@@ -616,6 +678,8 @@ public class Client extends JFrame {
                         String message = (String) frame.getMESSAGE();
                         if (ERROR_USER_NOT_EXIST.matches(message)) {
                             showErrorDialog("Błędne login lub hasło");
+                        } else if (wideokomunikator.exception.DatabaseException.ERROR_USER_IS_LOGGED_IN.matches(message)) {
+                            showErrorDialog("Użytkownik jest już zalogowany");
                         } else {
                             showErrorDialog(message);
                         }

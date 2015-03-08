@@ -12,4 +12,5 @@ package wideokomunikator.exception;
 public class DatabaseException extends Exception{    
     public transient final static String ERROR_USER_EXIST = "This user already exist in database";
     public transient final static String ERROR_USER_NOT_EXIST = "This user does not exist it database";
+    public transient final static String ERROR_USER_IS_LOGGED_IN = "User is already logged in";
 }

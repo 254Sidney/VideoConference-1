@@ -2,6 +2,7 @@ package wideokomunikator.audiovideo;
 
 import com.xuggle.xuggler.*;
 import com.xuggle.xuggler.video.*;
+import java.awt.Dimension;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
@@ -28,7 +29,7 @@ public class AudioVideo {
     private boolean bigEndian = true;
     private AudioFormat audioFormat = null;
     private boolean readyMicrophone = false;
-    ;
+    private Dimension imageSize = new Dimension(320, 240);
     private boolean readySpeakers = false;
 
     //Video
@@ -139,13 +140,13 @@ public class AudioVideo {
         if (isEncoder) {
             IRational frameRate = IRational.make((int) camera.getFrameRate(), 1);
             coder = IStreamCoder.make(IStreamCoder.Direction.ENCODING, videoCodec);
-            coder.setWidth(320);
-            coder.setHeight(240);
+            coder.setWidth(imageSize.width);
+            coder.setHeight(imageSize.height);
             coder.setPixelType(IPixelFormat.Type.YUV420P);
             coder.setBitRate(64000);
             coder.setBitRateTolerance(32000);
             coder.setFrameRate(frameRate);
-            coder.setNumPicturesInGroupOfPictures(2);
+            coder.setNumPicturesInGroupOfPictures(5);
             coder.setTimeBase(IRational.make(1, (int) camera.getFrameRate()));
             coder.setFlag(IStreamCoder.Flags.FLAG_LOW_DELAY, true);
             coder.setFlag(IStreamCoder.Flags.FLAG2_FAST, true);
@@ -153,8 +154,8 @@ public class AudioVideo {
             coder.setProperty("x264-params", "fast-pskip=1");
         } else {
             coder = IStreamCoder.make(IStreamCoder.Direction.DECODING, videoCodec);
-            coder.setWidth(320);
-            coder.setHeight(240);
+            coder.setWidth(imageSize.width);
+            coder.setHeight(imageSize.height);
         }
         return coder;
     }
@@ -376,7 +377,7 @@ public class AudioVideo {
 
     private void decodeVideo(Packet packet, int UserID) {
         IPacket ipacket = packet.getIPacket();
-        IVideoPicture picture = IVideoPicture.make(IPixelFormat.Type.YUV420P, 320, 240);
+        IVideoPicture picture = IVideoPicture.make(IPixelFormat.Type.YUV420P, imageSize.width, imageSize.height);
         if (videoDecoder.get(UserID) != null) {
             int offset = 0;
             while (offset < ipacket.getSize()) {
@@ -456,8 +457,8 @@ public class AudioVideo {
     }
 
     public void initCamera(FrameGrabber frameGrabber) {
-        camera.setImageWidth(640);
-        camera.setImageHeight(480);
+        camera.setImageWidth(imageSize.width);
+        camera.setImageHeight(imageSize.height);
         camera.setFrameRate(24);
         camera.setPixelFormat(org.bytedeco.javacpp.avutil.AV_PIX_FMT_YUV420P);
     }
@@ -538,10 +539,11 @@ public class AudioVideo {
                 boolean keypacket = false;
                 boolean isNext;
                 while (record) {
+                    StreamBuffer<Packet> buffer = buffersVideoReceive.get(UserID);
+                    synchronized (buffer) {
                     Packet packet = null;
-                    synchronized (buffersVideoReceive.get(UserID)) {
-                        if (isNext = buffersVideoReceive.get(UserID).isNext()) {
-                            packet = buffersVideoReceive.get(UserID).getNext();
+                        if (isNext = buffer.isNext()) {
+                            packet = buffer.getNext();
                             if (packet.isKeyPacket()) {
                                 keypacket = true;
                             }
@@ -552,12 +554,12 @@ public class AudioVideo {
                         }
                     }
                     if (!isNext) {
-                        buffersVideoReceive.get(UserID).clean();
                         if (buffersVideoReceive.get(UserID).size() > maxPackets) {
                             buffersVideoReceive.get(UserID).lastAvaliable();
                             keypacket = false;
                             time = 0;
                         }
+                        buffersVideoReceive.get(UserID).clean();
                         if (time >= timeout) {
                             buffersVideoReceive.get(UserID).skip();
                             System.out.println("skipVideo");
@@ -582,7 +584,7 @@ public class AudioVideo {
         Thread thread = new Thread(new Runnable() {
             private final int UserID = ID;
             private final int timeout = 1000;
-            private final int maxPackets = 10;
+            private final int maxPackets = 5;
 
             @Override
             public void run() {
@@ -590,10 +592,11 @@ public class AudioVideo {
                 boolean keypacket = false;
                 boolean isNext;
                 while (record) {
+                    StreamBuffer<Packet> buffer = buffersAudioReceive.get(UserID);
+                    synchronized (buffer) {
                     Packet packet = null;
-                    synchronized (buffersAudioReceive.get(UserID)) {
-                        if (isNext = buffersAudioReceive.get(UserID).isNext()) {
-                            packet = buffersAudioReceive.get(UserID).getNext();
+                        if (isNext = buffer.isNext()) {
+                            packet = buffer.getNext();
                             if (packet.isKeyPacket()) {
                                 keypacket = true;
                             }
@@ -604,12 +607,12 @@ public class AudioVideo {
                         }
                     }
                     if (!isNext) {
-                        buffersAudioReceive.get(UserID).clean();
                         if (buffersAudioReceive.get(UserID).size() > maxPackets) {
                             buffersAudioReceive.get(UserID).lastAvaliable();
                             keypacket = false;
                             time = 0;
                         }
+                        buffersAudioReceive.get(UserID).clean();
                         if (time >= timeout) {
                             buffersAudioReceive.get(UserID).skip();
                             System.out.println("skipAudio");

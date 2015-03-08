@@ -8,9 +8,11 @@ import wideokomunikator.net.Frame;
 import wideokomunikator.net.MESSAGE_TITLES;
 import wideokomunikator.server.db.Database;
 import wideokomunikator.User;
+import wideokomunikator.exception.DatabaseException;
 import static wideokomunikator.exception.DatabaseException.*;
 import static wideokomunikator.net.MESSAGE_TYPE.*;
 import wideokomunikator.server.RequestHandler;
+import wideokomunikator.server.conference.Server;
 
 /**
  *
@@ -45,6 +47,9 @@ public class Response {
             break;
             case FRIENDS_LIST: {
                 this.frame = FriendList(frame);
+            }break;
+            case FRIEND_ACTIVITY:{
+                this.frame = FriendActivity(frame);
             }
             break;
             case FRIENDS_REMOVE: {
@@ -67,6 +72,11 @@ public class Response {
         User user = null;
         try {
             user = (wideokomunikator.User) (Database.getInstance().Sign(email, password));
+            for(int i=0;i<wideokomunikator.server.Server.clientsThreads.size();i++){
+                if(user.equals(wideokomunikator.server.Server.clientsThreads.get(i).getUser())){
+                    return  new Frame(RESPONSE,frame.getUSER_ID(), frame.getMESSAGE_ID(),MESSAGE_TITLES.ERROR, DatabaseException.ERROR_USER_IS_LOGGED_IN);
+                }
+            }
         } catch (NullPointerException ex) {
             if (ERROR_USER_NOT_EXIST.matches(ex.getMessage())) {
                 return new Frame(RESPONSE, frame.getUSER_ID(), frame.getMESSAGE_ID(), MESSAGE_TITLES.ERROR, ex.toString());
@@ -74,6 +84,7 @@ public class Response {
         }
         request.setUser(user);
         System.out.println(user);
+        wideokomunikator.server.Server.clientsActivity.put(user.getID(), true);
         return new Frame(RESPONSE, frame.getUSER_ID(), frame.getMESSAGE_ID(), MESSAGE_TITLES.LOGIN, user);
     }
 
@@ -143,6 +154,12 @@ public class Response {
         }
         return new Frame(RESPONSE, frame.getUSER_ID(), frame.getMESSAGE_ID(), MESSAGE_TITLES.FINISH, u.length);
     }
+    
+    private Frame FriendActivity(Frame frame){
+        int user_id = (int) frame.getMESSAGE();
+        boolean isActive = wideokomunikator.server.Server.clientsActivity.getOrDefault(user_id, Boolean.FALSE);
+        return new Frame(RESPONSE, frame.getUSER_ID(), frame.getMESSAGE_ID(), frame.getMESSAGE_TITLE(), isActive);
+    }
 
     private Frame RemoveFriend(Frame frame) {
         int user_id = (int) frame.getMESSAGE();
@@ -164,14 +181,13 @@ public class Response {
             int users_id[] = new int[split.length + 1];
             users_id[0] = frame.getUSER_ID();
             for (int i = 1; i < users_id.length; i++) {
-                users_id[i] = Integer.parseInt(split[i-1]);
+                users_id[i] = Integer.parseInt(split[i - 1]);
             }
             int adres = request.ConferenceInit(users_id);
 
-            
             for (int i = 1; i < users_id.length; i++) {
-                for (int j = 0; j < wideokomunikator.server.Server.clients.size(); j++) {
-                    RequestHandler req = wideokomunikator.server.Server.clients.get(j);
+                for (int j = 0; j < wideokomunikator.server.Server.clientsThreads.size(); j++) {
+                    RequestHandler req = wideokomunikator.server.Server.clientsThreads.get(j);
                     if (req.getUser().getID() == users_id[i]) {
                         req.sendFrame(new Frame(REQUEST, frame.getUSER_ID(), req.getNextFrameId(), MESSAGE_TITLES.CONFERENCE_INIT, adres));
                     }

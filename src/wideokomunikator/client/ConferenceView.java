@@ -1,9 +1,7 @@
 package wideokomunikator.client;
 
+import java.awt.Color;
 import java.awt.Dimension;
-import java.awt.Graphics;
-import java.awt.Graphics2D;
-import java.awt.LayoutManager;
 import java.awt.Point;
 import java.awt.Toolkit;
 import java.awt.event.KeyAdapter;
@@ -17,10 +15,14 @@ import java.net.DatagramSocket;
 import java.net.InetSocketAddress;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
-import javax.swing.JPanel;
+import java.util.HashMap;
+import javax.swing.ImageIcon;
+import javax.swing.JDesktopPane;
+import javax.swing.JInternalFrame;
+import javax.swing.JLabel;
 import wideokomunikator.audiovideo.AudioVideo;
 
-public class ConferenceView extends JPanel {
+public class ConferenceView extends JDesktopPane {
 
     private boolean full_screan = false;
     private Dimension window_size;
@@ -33,28 +35,15 @@ public class ConferenceView extends JPanel {
     private final int DATAGRAM_SIZE = 64000;
     private boolean Active = true;
     private AudioVideo audiovideo = null;
-
-    public ConferenceView(LayoutManager layout) {
-        super(layout);
-    }
+    View frame;
+    private HashMap<Integer, View> userViewMap;
 
     public ConferenceView() {
         initComponents();
-
-    }
-
-    @Override
-    public void paint(Graphics g) {
-        bufor = new BufferedImage(getWidth(), getHeight(), BufferedImage.TYPE_INT_ARGB);
-        Graphics g2 = bufor.getGraphics();
-        Graphics2D g2d = (Graphics2D) g2;
-        if (image != null) {
-            g2d.drawImage(image, 0, 0, getWidth(), getHeight(), this);
-        }
-        g.drawImage(bufor, 0, 0, this);
     }
 
     private void initComponents() {
+        userViewMap = new HashMap<Integer, View>();
         location = new Point(100, 100);
         setLocation(location);
         addMouseListener(new MouseAdapter() {
@@ -87,8 +76,6 @@ public class ConferenceView extends JPanel {
 
     public void setFullScrean(boolean value) {
         full_screan = value;
-        //dispose();
-        //setUndecorated(value);
         if (value) {
             setSize(Toolkit.getDefaultToolkit().getScreenSize());
             setLocation(0, 0);
@@ -112,8 +99,14 @@ public class ConferenceView extends JPanel {
             audiovideo = new AudioVideo(UserID, host, Integer.parseInt(prop[0]), Integer.parseInt(prop[1])) {
 
                 @Override
-                public void setImage(BufferedImage image2, int ID) {
-                    image = image2;
+                public void setImage(BufferedImage image, int ID) {
+                    View view = userViewMap.getOrDefault(ID, null);
+                    if(view == null){
+                        view = new View("", true, false, true, true);
+                        userViewMap.put(ID, view);
+                        add(view);
+                    }
+                    view.setImage(image);
                     repaint();
                 }
 
@@ -149,6 +142,23 @@ public class ConferenceView extends JPanel {
             audiovideo.stop();
         }
 
+    }
+
+    class View extends JInternalFrame {
+
+        BufferedImage image;
+        JLabel label = new JLabel();
+
+        public View(String title, boolean resizable, boolean closable, boolean maximizable, boolean iconifiable) {
+            super(title, resizable, closable, maximizable, iconifiable);
+            setContentPane(label);
+            setSize(320, 240);
+            setVisible(true);            
+        }
+
+        public void setImage(BufferedImage image) {
+            label.setIcon(new ImageIcon(image.getScaledInstance(label.getWidth(), label.getHeight(), BufferedImage.SCALE_SMOOTH)));
+        }
     }
 
 }

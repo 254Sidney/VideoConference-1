@@ -5,6 +5,7 @@ import wideokomunikator.server.db.Database;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.ArrayList;
+import java.util.concurrent.ConcurrentHashMap;
 import javax.net.ssl.SSLServerSocket;
 import javax.net.ssl.SSLServerSocketFactory;
 import javax.net.ssl.SSLSocket;
@@ -12,8 +13,9 @@ import javax.net.ssl.SSLSocket;
 
 public class Server extends Thread{
     private SSLServerSocket serverSocket;
-    public static ArrayList<RequestHandler> clients; 
+    public static ArrayList<RequestHandler> clientsThreads; 
     public static ArrayList<wideokomunikator.server.conference.Server> conferences;
+    public static java.util.concurrent.ConcurrentHashMap<Integer,Boolean> clientsActivity;
     private boolean serverActivity = true;
     public Server(InetAddress host,int port) {
         SSLServerSocketFactory serverSocketFactory = (SSLServerSocketFactory) SSLServerSocketFactory.getDefault();  
@@ -36,17 +38,18 @@ public class Server extends Thread{
     }
     
     private void init(){
-        clients = new ArrayList<RequestHandler>();
+        clientsThreads = new ArrayList<RequestHandler>();
         conferences = new ArrayList<wideokomunikator.server.conference.Server>();
+        clientsActivity = new ConcurrentHashMap<>();
         final String[] enabledCipherSuites = { "SSL_DH_anon_WITH_RC4_128_MD5" };
         serverSocket.setEnabledCipherSuites(enabledCipherSuites);  
-        Database.getInstance();        
-        
+        Database.getInstance();                
     }
     
 
     @Override
     public void run() {
+        System.out.println("Server starts");
         while(serverActivity){
             SSLSocket socket;
             try {
@@ -54,9 +57,10 @@ public class Server extends Thread{
                 System.out.println(socket.getRemoteSocketAddress());
                 RequestHandler req = new RequestHandler(socket);
                 req.start();
-                clients.add(req);
+                clientsThreads.add(req);
             } catch (IOException ex) {
-                ex.printStackTrace();
+                serverActivity = false;
+                System.out.println("Server closed: "+ex.getMessage());
             }
         }
         try {
@@ -64,7 +68,6 @@ public class Server extends Thread{
         } catch (IOException ex) {
             ex.printStackTrace();
         }
-        
     }
     
 }

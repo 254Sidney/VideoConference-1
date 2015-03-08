@@ -3,12 +3,7 @@ package wideokomunikator.server;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.net.InetAddress;
-import java.net.SocketAddress;
 import java.net.SocketException;
-import java.util.ArrayList;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import javax.net.ssl.SSLSocket;
 import wideokomunikator.net.Frame;
 import wideokomunikator.server.net.Response;
@@ -25,7 +20,6 @@ public class RequestHandler extends Thread {
 
     public RequestHandler(SSLSocket client) throws IOException {
         this.client = client;
-
         //open client streams
         client_in = client.getInputStream();
         client_out = client.getOutputStream();
@@ -64,7 +58,7 @@ public class RequestHandler extends Thread {
     }
 
     public boolean isAvailable(int id) {
-        for (RequestHandler request : Server.clients) {
+        for (RequestHandler request : Server.clientsThreads) {
             wideokomunikator.User user = request.client_id;
             if (user != null) {
                 if (user.getID() == id) {
@@ -127,10 +121,14 @@ public class RequestHandler extends Thread {
                 e.printStackTrace();
             }
         }
+        Server.clientsActivity.put(this.client_id.getID(), false);
+        Server.clientsThreads.remove(this);
     }
 
     public void sendFrame(Frame frame) {
         frame_id = getNextFrameId();
         this.frame = frame;
     }
+
+    
 }

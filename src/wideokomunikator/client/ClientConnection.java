@@ -14,6 +14,7 @@ import javax.net.ssl.SSLSocketFactory;
 import javax.swing.JDialog;
 import javax.swing.JOptionPane;
 import javax.swing.JProgressBar;
+import javax.swing.UIManager;
 import wideokomunikator.net.Frame;
 import static wideokomunikator.net.MESSAGE_TYPE.REQUEST;
 
@@ -29,7 +30,10 @@ public class ClientConnection extends Thread {
     private PropertyChangeSupport chg = new PropertyChangeSupport(this);
     private Frame serverRequest = null;
 
-    public ClientConnection(String hostname, int port) throws IOException {
+    public ClientConnection(String hostname, int port) throws IOException {        
+        try {
+            UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+        } catch (Exception ex) {}
         JProgressBar progress = new JProgressBar();
         progress.setIndeterminate(true);
         progress.setStringPainted(true);
