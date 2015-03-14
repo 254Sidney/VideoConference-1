@@ -20,6 +20,7 @@ import static wideokomunikator.exception.DatabaseException.*;
 import wideokomunikator.main;
 import wideokomunikator.net.MESSAGE_TITLES;
 import wideokomunikator.net.MESSAGE_TYPE;
+import wideokomunikator.statistics.Statistics;
 
 public class Client extends JFrame {
 
@@ -31,6 +32,7 @@ public class Client extends JFrame {
     private final String serverAdress;
     private final int serverPort;
     private boolean active = true;
+    public static Statistics stats = new Statistics();
 
     public Client(String serverAdress, int serverPort) {
         friends = new ArrayList<Friend>();
@@ -178,7 +180,7 @@ public class Client extends JFrame {
 
     private class UserPanel extends JPanel {
 
-        private final long FriendsActivityUpdate = 1000;
+        private final long FriendsActivityUpdate = 5000;
         private Thread FriendsActivityThread;
 
         public UserPanel() {
@@ -190,7 +192,7 @@ public class Client extends JFrame {
             friends_panel.setBorder(new BevelBorder(BevelBorder.LOWERED));
             friends_panel.setCellRenderer(new ListCellRenderer<Friend>() {
                 private final Color color = new Color(168, 221, 255);
-                
+
                 @Override
                 public Component getListCellRendererComponent(JList<? extends Friend> list, Friend value, int index, boolean isSelected, boolean cellHasFocus) {
                     Friend p = value;
@@ -259,6 +261,13 @@ public class Client extends JFrame {
             JMenu menu;
             JMenuItem item;
             menubar.add(menu = new JMenu("Program"));
+            menu.add(item = new JMenuItem("Debugowanie"));
+            item.addActionListener(new ActionListener() {
+                @Override
+                public void actionPerformed(ActionEvent e) {
+                    stats.setVisible(!stats.isVisible());
+                }
+            });
             menu.add(item = new JMenuItem("Zamknij"));
             item.addActionListener(new ActionListener() {
                 @Override
@@ -386,8 +395,21 @@ public class Client extends JFrame {
                 }
             });
             menubar.add(menu = new JMenu("Konferencje"));
+            menu.add(item = new JMenuItem("Zamknij"));
+            item.addActionListener(new ActionListener() {
+                @Override
+                public void actionPerformed(ActionEvent e) {
+                    view.close();
+                }
+            });
             menubar.add(menu = new JMenu("Widok"));
-            //menubar.add(menu = new JMenu("Narzędzia"));
+            menu.add(item = new JMenuItem("Pełen ekran"));
+            item.addActionListener(new ActionListener() {
+                @Override
+                public void actionPerformed(ActionEvent e) {
+                    view.setFullScrean(!view.isFullScrean());
+                }
+            });
 
         }
 
@@ -508,13 +530,14 @@ public class Client extends JFrame {
                 @Override
                 public void run() {
                     while (active) {
-                        for(int i=0;i<list_model.size();i++){
+                        for (int i = 0; i < list_model.size(); i++) {
                             setActivity(list_model.get(i));
                             friends_panel.repaint(friends_panel.getCellBounds(i, i));
                         }
                         try {
                             Thread.sleep(FriendsActivityUpdate);
-                        } catch (InterruptedException ex) {}
+                        } catch (InterruptedException ex) {
+                        }
                     }
                 }
             });
@@ -543,7 +566,7 @@ public class Client extends JFrame {
                         time -= 10;
                     }
                     if (frame == null) {
-                        showErrorDialog("Przekroczono limit czasu oczekiwania na odpowiedź!");
+                        showErrorDialog("Przekroczono limit czasu oczekiwania na odpowiedź (Aktywność użytkowników)!");
                         return;
                     } else if (frame.getMESSAGE_TITLE() == MESSAGE_TITLES.FRIEND_ACTIVITY) {
                         boolean status = (boolean) frame.getMESSAGE();
@@ -554,7 +577,7 @@ public class Client extends JFrame {
                 }
             }).start();
         }
-        
+
         private SearchDialog search;
         private JSplitPane splitpane;
         private JList<Friend> friends_panel;

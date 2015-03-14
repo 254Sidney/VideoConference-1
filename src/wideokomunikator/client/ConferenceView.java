@@ -1,25 +1,19 @@
 package wideokomunikator.client;
 
-import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Point;
 import java.awt.Toolkit;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
-import java.net.DatagramPacket;
-import java.net.DatagramSocket;
-import java.net.InetSocketAddress;
-import java.net.SocketException;
-import java.net.SocketTimeoutException;
+import java.net.*;
 import java.util.HashMap;
-import javax.swing.ImageIcon;
-import javax.swing.JDesktopPane;
-import javax.swing.JInternalFrame;
-import javax.swing.JLabel;
+import javax.swing.*;
 import wideokomunikator.audiovideo.AudioVideo;
 
 public class ConferenceView extends JDesktopPane {
@@ -27,16 +21,15 @@ public class ConferenceView extends JDesktopPane {
     private boolean full_screan = false;
     private Dimension window_size;
     private Point location;
-    private BufferedImage image = null, bufor = null;
     private boolean record = false;
     private InetSocketAddress serverAdress = null;
     private DatagramSocket serverSocket = null;
     private Thread comunicationThread = null;
     private final int DATAGRAM_SIZE = 64000;
-    private boolean Active = true;
     private AudioVideo audiovideo = null;
-    View frame;
     private HashMap<Integer, View> userViewMap;
+    private int UserID;
+    private JPopupMenu popup;
 
     public ConferenceView() {
         initComponents();
@@ -46,6 +39,16 @@ public class ConferenceView extends JDesktopPane {
         userViewMap = new HashMap<Integer, View>();
         location = new Point(100, 100);
         setLocation(location);
+        popup = new JPopupMenu("Menu");
+        JMenuItem item;
+        popup.add(item = new JMenuItem("Zamknij konferencje"));
+        item.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                close();
+            }
+        });        
+        setComponentPopupMenu(popup);
         addMouseListener(new MouseAdapter() {
 
             @Override
@@ -69,11 +72,6 @@ public class ConferenceView extends JDesktopPane {
         setVisible(true);
     }
 
-    public void setImag(BufferedImage image) {
-        this.image = image;
-        repaint();
-    }
-
     public void setFullScrean(boolean value) {
         full_screan = value;
         if (value) {
@@ -86,7 +84,13 @@ public class ConferenceView extends JDesktopPane {
         setVisible(true);
     }
 
+    public boolean isFullScrean() {
+        return full_screan;
+    }
+    
+
     public void initConnection(String host, int port, int UserID) {
+        this.UserID = UserID;
         serverAdress = new InetSocketAddress(host, port);
         try {
             serverSocket = new DatagramSocket(0);
@@ -101,7 +105,7 @@ public class ConferenceView extends JDesktopPane {
                 @Override
                 public void setImage(BufferedImage image, int ID) {
                     View view = userViewMap.getOrDefault(ID, null);
-                    if(view == null){
+                    if (view == null) {
                         view = new View("", true, false, true, true);
                         userViewMap.put(ID, view);
                         add(view);
@@ -124,7 +128,7 @@ public class ConferenceView extends JDesktopPane {
         DatagramPacket packetReceived = new DatagramPacket(buffer, buffer.length);
         try {
             DatagramPacket packetToSend = new DatagramPacket(message.getBytes(), message.getBytes().length, serverAdress);
-            serverSocket.setSoTimeout(1000);
+            serverSocket.setSoTimeout(5000);
             serverSocket.send(packetToSend);
             serverSocket.receive(packetReceived);
         } catch (SocketTimeoutException ex) {
@@ -138,9 +142,18 @@ public class ConferenceView extends JDesktopPane {
     }
 
     public void close() {
+        if (serverAdress != null) {
+            try {
+                String response = getMessage("close\n" + UserID);
+            } catch (SocketTimeoutException ex) {
+            }
+        }
         if (audiovideo != null) {
             audiovideo.stop();
         }
+        removeAll();
+        userViewMap.clear();
+        repaint();
 
     }
 
@@ -151,9 +164,10 @@ public class ConferenceView extends JDesktopPane {
 
         public View(String title, boolean resizable, boolean closable, boolean maximizable, boolean iconifiable) {
             super(title, resizable, closable, maximizable, iconifiable);
+            setComponentPopupMenu(popup);
             setContentPane(label);
             setSize(320, 240);
-            setVisible(true);            
+            setVisible(true);
         }
 
         public void setImage(BufferedImage image) {

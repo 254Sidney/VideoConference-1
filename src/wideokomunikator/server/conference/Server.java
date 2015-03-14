@@ -3,13 +3,9 @@ package wideokomunikator.server.conference;
 import java.io.*;
 import java.net.*;
 import java.util.ArrayList;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 public class Server extends Thread {
 
-    private DatagramSocket datagram_socket;
-    private DatagramSocket datagram_socket2;
     private DatagramSocket serverSocket;
     private final int DATAGRAM_SIZE = 64000;
     private boolean active = true;
@@ -23,10 +19,6 @@ public class Server extends Thread {
 
     public int getAdress() {
         return serverSocket.getLocalPort();
-    }
-
-    private void addUser(Member m) {
-        members.add(m);
     }
 
     public void comunicationThread() {
@@ -48,9 +40,10 @@ public class Server extends Thread {
         comunicationThread.start();
     }
 
+    public boolean started = false;
     public void activityThread() {
         new Thread(new Runnable() {
-            final int sleepTime = 1000;// 1 minute
+            final int sleepTime = 10000;// 10 sec
 
             @Override
             public void run() {
@@ -58,12 +51,17 @@ public class Server extends Thread {
                     boolean isActive = false;
                     for (Member m : members) {
                         if (m.isActive()) {
+                            started = true;
                             isActive = true;
                         }
                     }
                     if (isActive == false && members.size() > 0) {
                         active = false;
                     }
+                    if(started == true && members.size() == 0){
+                        active = false;
+                    }
+                    
                     try {
                         Thread.sleep(sleepTime);
                     } catch (InterruptedException ex) {
@@ -96,8 +94,6 @@ public class Server extends Thread {
 
     public void stopServer() {
         active = false;
-        datagram_socket.close();
-        datagram_socket2.close();
     }
 
     class ComunicationHendler extends Thread {
@@ -124,6 +120,21 @@ public class Server extends Thread {
                     ex.printStackTrace();
                 } catch (IOException ex) {
                     ex.printStackTrace();
+                }
+            } else if (header.matches("close")) {
+                for (int i = 0; i < members.size(); i++) {
+                    if (members.get(i).getUserID() == Integer.parseInt(message[1])) {
+                        synchronized (members) {
+                            members.get(i).close();
+                            members.remove(i);
+                        }
+                        break;
+                    }
+                }
+                try {
+                    sendMessage("ok");
+                } catch (IOException ex) {
+                    
                 }
             }
         }

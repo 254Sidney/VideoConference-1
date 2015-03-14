@@ -39,6 +39,10 @@ public class Member extends Thread {
         return videoSocket.getLocalPort();
     }
 
+    public int getUserID() {
+        return UserID;
+    }    
+
     @Override
     public void run() {
         StartAudioReceiveThread();
@@ -47,7 +51,7 @@ public class Member extends Thread {
 
     public boolean isActive() {
         long timeSecond = TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis() - lastActivity);
-        if (timeSecond < 60||lastActivity==0) {
+        if (timeSecond < 60 || lastActivity == 0) {
             return true;
         } else {
             return false;
@@ -142,19 +146,24 @@ public class Member extends Thread {
         @Override
         public void run() {
             for (Member m : users) {
-                if (m.UserID == UserID) {
+                //if (m.UserID != UserID) {
                     int port = isAudio ? m.audioPort : m.videoPort;
                     InetAddress host = m.host;
                     if (host != null && port != -1) {
-                        DatagramSocket datagramsocket = (isAudio ? m.audioSocket : m.videoSocket);
-                        DatagramPacket packet = new DatagramPacket(data, data.length, host, port);
-                        try {
-                            datagramsocket.send(packet);
-                        } catch (IOException ex) {
-                        }
+                        new Thread(new Runnable() {
+                            @Override
+                            public void run() {
+                                DatagramSocket datagramsocket = (isAudio ? m.audioSocket : m.videoSocket);
+                                DatagramPacket packet = new DatagramPacket(data, data.length, host, port);
+                                try {
+                                    datagramsocket.send(packet);
+                                } catch (IOException ex) {
+                                }
+                            }
+                        }).start();
 
                     }
-                }
+                //}
             }
         }
     }

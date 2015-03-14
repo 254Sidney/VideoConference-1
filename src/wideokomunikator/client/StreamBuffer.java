@@ -69,7 +69,7 @@ public class StreamBuffer<T> {
         int max = Integer.MIN_VALUE;
         Iterator<Entry<Integer, T>> it = buffor.entrySet().iterator();
         while (it.hasNext()) {
-            Entry<Integer, T> item = it.next();
+            Entry<Integer, T>  item = it.next();
             if ((item.getKey()) > max) {
                 max = item.getKey();
             }

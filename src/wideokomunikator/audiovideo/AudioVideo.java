@@ -10,6 +10,10 @@ import java.net.*;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.Map;
+import java.util.Queue;
 import javax.imageio.ImageIO;
 import javax.sound.sampled.*;
 import javax.swing.JOptionPane;
@@ -49,6 +53,8 @@ public class AudioVideo {
     private HashMap<Integer, StreamBuffer<Packet>> buffersVideoReceive;
     private ArrayList<Packet> bufferVideo;
     private ArrayList<Packet> bufferAudio;
+    private HashMap<Integer, LinkedList<Byte>> buffersAudioPlay;
+    private ArrayList bufferAudioPlay;
 
     private Thread thread_audio, thread_video;
     private DatagramSocket datagram_socket_audio;
@@ -84,6 +90,8 @@ public class AudioVideo {
         buffersVideoReceive = new HashMap<>();
         bufferVideo = new ArrayList<>();
         bufferAudio = new ArrayList<>();
+        bufferAudioPlay = new ArrayList<>(2048 * 10);
+        buffersAudioPlay = new HashMap<>();
     }
 
     private boolean initDevices() {
@@ -178,6 +186,7 @@ public class AudioVideo {
             audiocodecOptions.setValue("application", "lowdelay");
             audiocodecOptions.setValue("enable", "libcelt");
             audiocodecOptions.setValue("thread_type", "slice");
+
             coder = initAudioCoder(coder, false);
             coder.open(audiocodecOptions, null);
             audioDecoder.put(UserID, coder);
@@ -205,7 +214,7 @@ public class AudioVideo {
         thread_audio = new Thread(new Runnable() {
             @Override
             public void run() {
-                int size = microphone.getBufferSize()/10;
+                int size = microphone.getBufferSize() / 10;
                 byte[] data = new byte[size];
                 short[] audioSamples = new short[size / (sampleSize / 8)];
                 long ct = System.currentTimeMillis();
@@ -229,8 +238,10 @@ public class AudioVideo {
                         }
                     }
                 }
-                microphone.stop();
                 audioCoder.close();
+                microphone.close();
+                microphone.stop();
+                //microphone.flush();
             }
         });
         thread_video = new Thread(new Runnable() {
@@ -282,6 +293,7 @@ public class AudioVideo {
             }
         }
         );
+        startAudioPlayThread();
         StartVideoReceiveThread();
         StartAudioReceiveThread();
         if (readyMicrophone) {
@@ -294,6 +306,59 @@ public class AudioVideo {
         }
     }
     int frames = 0;
+
+    private void startAudioPlayThread() {
+        new Thread(new Runnable() {
+            int bufferPlay = 2;
+
+            @Override
+            public void run() {
+                while (record) {
+                    byte[] buffer = new byte[bufferPlay];
+                    short[] audioSamples = new short[bufferPlay / (sampleSize / 8)];
+                    boolean ready = false;
+                    synchronized (buffersAudioPlay) {
+                        Iterator<Map.Entry<Integer, LinkedList<Byte>>> it = buffersAudioPlay.entrySet().iterator();
+                        while (it.hasNext()) {
+                            Map.Entry<Integer, LinkedList<Byte>> item = it.next();
+                            if (item.getValue().size() >= bufferPlay) {
+                                ready = true;
+                            }
+                        }
+                    }
+                    if (ready) {
+                        synchronized (buffersAudioPlay) {
+                            Iterator<Map.Entry<Integer, LinkedList<Byte>>> it = buffersAudioPlay.entrySet().iterator();
+                            while (it.hasNext()) {
+                                Map.Entry<Integer, LinkedList<Byte>> item = it.next();
+                                Queue queue = item.getValue();
+                                if (queue.size() >= bufferPlay) {
+                                    for (int i = 0; i < bufferPlay; i++) {
+                                        Object o = queue.poll();
+                                        if (o != null) {
+                                            buffer[i] = (byte) o;
+                                        }
+                                    }
+                                    short[] samples = toShort(buffer);
+                                    for (int i = 0; i < samples.length; i++) {
+                                        audioSamples[i] += samples[i];
+                                    }
+                                }
+                            }
+                        }
+                        byte[] audio = toByte(audioSamples);
+                        speakers.write(audio, 0, audio.length);
+                    } else {
+                        try {
+                            Thread.sleep(10);
+                        } catch (InterruptedException ex) {
+                            ex.printStackTrace();
+                        }
+                    }
+                }
+            }
+        }).start();
+    }
 
     private void startVideoSendingThread() {
         Thread thread = new Thread(new Runnable() {
@@ -365,7 +430,10 @@ public class AudioVideo {
             try {
                 if (audio.isComplete()) {
                     byte[] bytes = audio.getData().getByteArray(0, audio.getSize());
-                    speakers.write(bytes, 0, bytes.length);
+                    for (byte b : bytes) {
+                        LinkedList<Byte> queue = buffersAudioPlay.get(UserID);
+                        queue.add(b);
+                    }
                 }
             } catch (Exception ex) {
                 ex.printStackTrace();
@@ -425,6 +493,7 @@ public class AudioVideo {
             } catch (InterruptedException ex) {
             }
         }
+        speakers.stop();
     }
 
     public void setAudioFormat(float sampleRate, int sampleSizeInBits, int channels, boolean signed, boolean bigEndian) {
@@ -432,7 +501,7 @@ public class AudioVideo {
     }
 
     private void initMicrophone(TargetDataLine microphone) throws LineUnavailableException {
-        microphone.open(audioFormat,800);
+        microphone.open(audioFormat, 800);
     }
 
     private TargetDataLine getMicrophone(Mixer.Info mixerInfo) throws LineUnavailableException {
@@ -539,26 +608,30 @@ public class AudioVideo {
                 boolean keypacket = false;
                 boolean isNext;
                 while (record) {
+                    wideokomunikator.client.Client.stats.write("VideoBuffer " + ID + " = " + buffersVideoReceive.get(ID).size());
                     StreamBuffer<Packet> buffer = buffersVideoReceive.get(UserID);
-                    synchronized (buffer) {
                     Packet packet = null;
+                    synchronized (buffer) {
                         if (isNext = buffer.isNext()) {
                             packet = buffer.getNext();
                             if (packet.isKeyPacket()) {
                                 keypacket = true;
                             }
-                            if (keypacket) {
-                                decodeVideo(packet, UserID);
-                            }
-                            time = 0;
                         }
                     }
-                    if (!isNext) {
-                        if (buffersVideoReceive.get(UserID).size() > maxPackets) {
-                            buffersVideoReceive.get(UserID).lastAvaliable();
-                            keypacket = false;
-                            time = 0;
+                    if (isNext) {
+                        if (keypacket) {
+                            decodeVideo(packet, UserID);
                         }
+                        time = 0;
+
+                    }
+                    if (buffersVideoReceive.get(UserID).size() > maxPackets) {
+                        buffersVideoReceive.get(UserID).lastAvaliable();
+                        keypacket = false;
+                        time = 0;
+                    }
+                    if (!isNext) {
                         buffersVideoReceive.get(UserID).clean();
                         if (time >= timeout) {
                             buffersVideoReceive.get(UserID).skip();
@@ -574,7 +647,6 @@ public class AudioVideo {
                             }
                         }
                     }
-
                 }
             }
         }).start();
@@ -592,9 +664,11 @@ public class AudioVideo {
                 boolean keypacket = false;
                 boolean isNext;
                 while (record) {
+                    wideokomunikator.client.Client.stats.write("AudioBuffer " + ID + " = " + buffersAudioReceive.get(ID).size());
+                    //System.out.println("AudioBuffer = "+buffersAudioReceive.get(ID).size());
                     StreamBuffer<Packet> buffer = buffersAudioReceive.get(UserID);
-                    synchronized (buffer) {
                     Packet packet = null;
+                    synchronized (buffer) {
                         if (isNext = buffer.isNext()) {
                             packet = buffer.getNext();
                             if (packet.isKeyPacket()) {
@@ -606,12 +680,12 @@ public class AudioVideo {
                             time = 0;
                         }
                     }
+                    if (buffersAudioReceive.get(UserID).size() > maxPackets) {
+                        buffersAudioReceive.get(UserID).lastAvaliable();
+                        keypacket = false;
+                        time = 0;
+                    }
                     if (!isNext) {
-                        if (buffersAudioReceive.get(UserID).size() > maxPackets) {
-                            buffersAudioReceive.get(UserID).lastAvaliable();
-                            keypacket = false;
-                            time = 0;
-                        }
                         buffersAudioReceive.get(UserID).clean();
                         if (time >= timeout) {
                             buffersAudioReceive.get(UserID).skip();
@@ -654,19 +728,22 @@ public class AudioVideo {
 
         private final boolean isAudio;
         private final byte[] data;
+        private final int len;
 
         public Hendler(byte[] packet, int len, boolean isAudio) {
             this.isAudio = isAudio;
-            this.data = Arrays.copyOf(packet, len);
+            data = packet;
+            this.len = len;
         }
 
         @Override
         public void run() {
-            Packet packet = new Packet(data);
+            Packet packet = new Packet(Arrays.copyOfRange(data, 0, len));
 
             if (isAudio) {
                 if (buffersAudioReceive.get(packet.getUserID()) == null) {
                     getDecoders(packet.getUserID(), isAudio);
+                    buffersAudioPlay.put(packet.getUserID(), new LinkedList<Byte>());
                     buffersAudioReceive.put(packet.getUserID(), new StreamBuffer<Packet>());
                     StartAudioDecodeThread(packet.getUserID());
 
