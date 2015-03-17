@@ -75,11 +75,4 @@ public class Frame implements Serializable{
         return MESSAGE_TYPE;
     }
     
-    
-    
-    
-    
-    
-    
-    
 }

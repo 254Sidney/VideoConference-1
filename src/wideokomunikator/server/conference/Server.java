@@ -9,7 +9,7 @@ public class Server extends Thread {
     private DatagramSocket serverSocket;
     private final int DATAGRAM_SIZE = 64000;
     private boolean active = true;
-    private ArrayList<Member> members = new ArrayList<Member>();
+    private ArrayList<ConferenceUser> members = new ArrayList<ConferenceUser>();
 
     private Thread comunicationThread;
 
@@ -49,7 +49,7 @@ public class Server extends Thread {
             public void run() {
                 while (active) {
                     boolean isActive = false;
-                    for (Member m : members) {
+                    for (ConferenceUser m : members) {
                         if (m.isActive()) {
                             started = true;
                             isActive = true;
@@ -80,7 +80,7 @@ public class Server extends Thread {
             } catch (InterruptedException ex) {
             }
         }
-        for (Member m : members) {
+        for (ConferenceUser m : members) {
             m.close();
         }
         wideokomunikator.server.Server.conferences.remove(this);
@@ -110,7 +110,7 @@ public class Server extends Thread {
             String header = message[0];
             if (header.matches("init")) {
                 try {
-                    Member m = new Member(Integer.parseInt(message[1]), members);
+                    ConferenceUser m = new ConferenceUser(Integer.parseInt(message[1]), members);
                     m.start();
                     members.add(m);
                     String mesasge = m.getAudioPort() + "\n" + m.getVideoPort();

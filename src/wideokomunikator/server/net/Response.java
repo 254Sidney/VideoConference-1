@@ -12,7 +12,6 @@ import wideokomunikator.exception.DatabaseException;
 import static wideokomunikator.exception.DatabaseException.*;
 import static wideokomunikator.net.MESSAGE_TYPE.*;
 import wideokomunikator.server.RequestHandler;
-import wideokomunikator.server.conference.Server;
 
 /**
  *
@@ -83,7 +82,6 @@ public class Response {
             }
         }
         request.setUser(user);
-        System.out.println(user);
         wideokomunikator.server.Server.clientsActivity.put(user.getID(), true);
         return new Frame(RESPONSE, frame.getUSER_ID(), frame.getMESSAGE_ID(), MESSAGE_TITLES.LOGIN, user);
     }

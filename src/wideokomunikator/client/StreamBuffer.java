@@ -2,21 +2,20 @@ package wideokomunikator.client;
 
 import java.util.Iterator;
 import java.util.Map.Entry;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.HashMap;
 
 public class StreamBuffer<T> {
 
     private Integer current = -1;
     private T next = null;
-    private final int maxBuffor = 10;
 
-    private ConcurrentHashMap<Integer, T> buffor = null;
+    private HashMap<Integer, T> buffor = null;
 
     public StreamBuffer() {
-        buffor = new ConcurrentHashMap<>();
+        buffor = new HashMap<>();
     }
 
-    public synchronized void setPacket(int ID, final T packet) {
+    public void setPacket(int ID, final T packet) {
         if (ID > current) {
             buffor.put(ID, packet);
         }
@@ -26,7 +25,7 @@ public class StreamBuffer<T> {
         return buffor.get(ID);
     }
 
-    public synchronized final T getNext() {
+    public final T getNext() {
         T data;
         data = buffor.get(getNextID());
         current += 1;
@@ -78,7 +77,7 @@ public class StreamBuffer<T> {
         clean();
     }
 
-    public synchronized void clean() {
+    public void clean() {
         Iterator<Entry<Integer, T>> it = buffor.entrySet().iterator();
         while (it.hasNext()) {
             Entry<Integer, T> item = it.next();

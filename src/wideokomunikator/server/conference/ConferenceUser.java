@@ -8,15 +8,13 @@ import java.net.SocketException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
-public class Member extends Thread {
+public class ConferenceUser extends Thread {
 
     private int UserID;
     private DatagramSocket audioSocket;
     private DatagramSocket videoSocket;
-    private ArrayList<Member> users;
+    private ArrayList<ConferenceUser> users;
     private boolean Active = true;
     private final int DATAGRAM_SIZE = 64000;
     private InetAddress host = null;
@@ -24,7 +22,7 @@ public class Member extends Thread {
     private Thread audioThread, videoThread;
     private long lastActivity = 0;
 
-    public Member(int UserID, ArrayList<Member> users) throws SocketException {
+    public ConferenceUser(int UserID, ArrayList<ConferenceUser> users) throws SocketException {
         this.UserID = UserID;
         this.users = users;
         audioSocket = new DatagramSocket(0);
@@ -110,15 +108,13 @@ public class Member extends Thread {
 
     public void close() {
         Active = false;
-        audioSocket.close();
-        videoSocket.close();
         while (audioThread.isAlive() || videoThread.isAlive()) {
             try {
                 Thread.sleep(10);
-            } catch (InterruptedException ex) {
-                Logger.getLogger(Member.class.getName()).log(Level.SEVERE, null, ex);
-            }
+            } catch (InterruptedException ex) {}
         }
+        audioSocket.close();
+        videoSocket.close();
     }
 
     public DatagramSocket getAudioSocket() {
@@ -145,15 +141,15 @@ public class Member extends Thread {
 
         @Override
         public void run() {
-            for (Member m : users) {
-                //if (m.UserID != UserID) {
-                    int port = isAudio ? m.audioPort : m.videoPort;
-                    InetAddress host = m.host;
+            for (ConferenceUser user : users) {
+                //if (user.UserID != UserID) {
+                    int port = isAudio ? user.audioPort : user.videoPort;
+                    InetAddress host = user.host;
                     if (host != null && port != -1) {
                         new Thread(new Runnable() {
                             @Override
                             public void run() {
-                                DatagramSocket datagramsocket = (isAudio ? m.audioSocket : m.videoSocket);
+                                DatagramSocket datagramsocket = (isAudio ? user.audioSocket : user.videoSocket);
                                 DatagramPacket packet = new DatagramPacket(data, data.length, host, port);
                                 try {
                                     datagramsocket.send(packet);

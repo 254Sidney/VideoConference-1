@@ -16,9 +16,12 @@ public class Database implements Serializable{
     
     private transient Connection database_connection;
     private transient NetworkServerControl network_server;
-    private transient static Database database = new Database();
+    private transient static Database database = null;
     private transient static final int port = 1527;
     public static Database getInstance() {
+        if(database == null){
+            database = new Database();
+        }
         return database;
     }
 
@@ -34,16 +37,12 @@ public class Database implements Serializable{
         } catch (ClassNotFoundException | InstantiationException | IllegalAccessException | SQLException ex) {
             ex.printStackTrace();
         }       
-        //addFriend(2, 2);
-        //addFriend(1, 1);
     }
 
     private void initConnection() throws ClassNotFoundException, InstantiationException, IllegalAccessException, SQLException {
         Class.forName("org.apache.derby.jdbc.EmbeddedDriver").newInstance();
         database_connection = DriverManager.getConnection("jdbc:derby://localhost:"+port+"/Wideokomunikator;create=true");
         Statement statement = database_connection.createStatement();
-        //statement.executeUpdate("DROP TABLE FRIENDS");
-        //statement.executeUpdate("DROP TABLE USERS");
         if (!tableExists("USERS")) {
             statement.executeUpdate(""
                     + "CREATE TABLE USERS("

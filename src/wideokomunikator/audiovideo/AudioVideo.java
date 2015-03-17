@@ -56,7 +56,7 @@ public class AudioVideo {
     private HashMap<Integer, LinkedList<Byte>> buffersAudioPlay;
     private ArrayList bufferAudioPlay;
 
-    private Thread thread_audio, thread_video;
+    private Thread thread_audio, thread_video,thread_audio_sending,thread_video_sending;
     private DatagramSocket datagram_socket_audio;
     private DatagramSocket datagram_socket_video;
     private final String serverHost;
@@ -151,8 +151,9 @@ public class AudioVideo {
             coder.setWidth(imageSize.width);
             coder.setHeight(imageSize.height);
             coder.setPixelType(IPixelFormat.Type.YUV420P);
-            coder.setBitRate(64000);
-            coder.setBitRateTolerance(32000);
+            int bitrate = 64000;//maxVideoEncodingBitrate();
+            coder.setBitRate(bitrate);
+            coder.setBitRateTolerance(bitrate*3/4);
             coder.setFrameRate(frameRate);
             coder.setNumPicturesInGroupOfPictures(5);
             coder.setTimeBase(IRational.make(1, (int) camera.getFrameRate()));
@@ -361,7 +362,7 @@ public class AudioVideo {
     }
 
     private void startVideoSendingThread() {
-        Thread thread = new Thread(new Runnable() {
+        thread_video_sending = new Thread(new Runnable() {
             @Override
             public void run() {
                 while (record) {
@@ -386,11 +387,17 @@ public class AudioVideo {
                 }
             }
         });
-        thread.start();
+        thread_video_sending.start();
+    }
+    
+    //Kush gauge: pixel count x motion factor x 0.07 ÷ 1000 = bit rate in kbps
+    //(frame width x height = pixel count) and motion factor is 1,2 or 4
+    private int maxVideoEncodingBitrate(){
+        return (int)((camera.getImageWidth()*camera.getImageHeight()*camera.getFrameRate())*0.07*4);
     }
 
     private void startAudioSendingThread() {
-        Thread thread = new Thread(new Runnable() {
+        thread_audio_sending = new Thread(new Runnable() {
             @Override
             public void run() {
                 while (record) {
@@ -415,8 +422,7 @@ public class AudioVideo {
                 }
             }
         });
-        thread.setPriority(9);
-        thread.start();
+        thread_audio_sending.start();
     }
 
     private void decodeAudio(Packet packet, int UserID) {
@@ -487,7 +493,7 @@ public class AudioVideo {
 
     public void stop() {
         record = false;
-        while (thread_audio.isAlive() || thread_video.isAlive()) {
+        while (thread_audio.isAlive() || thread_video.isAlive()||thread_audio_sending.isAlive()||thread_video_sending.isAlive()) {
             try {
                 Thread.sleep(10);
             } catch (InterruptedException ex) {

@@ -128,7 +128,5 @@ public class RequestHandler extends Thread {
     public void sendFrame(Frame frame) {
         frame_id = getNextFrameId();
         this.frame = frame;
-    }
-
-    
+    }    
 }
