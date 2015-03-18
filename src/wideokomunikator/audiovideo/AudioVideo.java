@@ -151,7 +151,7 @@ public class AudioVideo {
             coder.setWidth(imageSize.width);
             coder.setHeight(imageSize.height);
             coder.setPixelType(IPixelFormat.Type.YUV420P);
-            int bitrate = 64000;//maxVideoEncodingBitrate();
+            int bitrate = /*64000;*/maxVideoEncodingBitrate();
             coder.setBitRate(bitrate);
             coder.setBitRateTolerance(bitrate*3/4);
             coder.setFrameRate(frameRate);

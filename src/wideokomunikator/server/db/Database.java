@@ -9,7 +9,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.apache.derby.drda.NetworkServerControl;
 import static wideokomunikator.exception.DatabaseException.ERROR_USER_EXIST;
-import static wideokomunikator.exception.DatabaseException.ERROR_USER_NOT_EXIST;
+import static wideokomunikator.exception.DatabaseException.ERROR_USER_NOT_EXIST_OR_WRONG_PASSWORD;
 import wideokomunikator.server.PasswordSecurity;
 
 public class Database implements Serializable{
@@ -282,7 +282,7 @@ public class Database implements Serializable{
                 this.LAST_NAME = rs.getString("LAST_NAME");
                 this.PASSWORD = rs.getBytes("PASSWORD");
             } else {
-                throw new NullPointerException(ERROR_USER_NOT_EXIST);
+                throw new NullPointerException(ERROR_USER_NOT_EXIST_OR_WRONG_PASSWORD);
             }
             rs.close();
             statement.close();

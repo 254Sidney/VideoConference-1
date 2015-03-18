@@ -1,7 +1,6 @@
 package wideokomunikator.server;
 
 
-import java.math.BigInteger;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
@@ -22,8 +21,8 @@ public class PasswordSecurity {
         return getHash(password.toCharArray());
     } 
     public static byte[] getHash(char[] password) throws NoSuchAlgorithmException{
-        SecureRandom random = new SecureRandom();
         byte salt[] = new byte[SALT_SIZE];
+        SecureRandom random = new SecureRandom();
         random.nextBytes(salt);
         byte[] hash = sha512(password, salt);
         byte[] result = new byte[SALT_SIZE+MessageDigest.getInstance(ALGORITHM).getDigestLength()];
@@ -34,11 +33,11 @@ public class PasswordSecurity {
     
     private static byte[] sha512(char[] password,byte[] salt) throws NoSuchAlgorithmException{      
         MessageDigest digest = MessageDigest.getInstance(ALGORITHM);
-        digest.reset();
         digest.update(salt);
-        byte[] bytes;
-        bytes = digest.digest(new String(password).getBytes());
-        return  bytes;
+        byte[] hash;
+        hash = digest.digest(new String(password).getBytes());
+        digest.reset();
+        return  hash;
     }
     
     public static boolean validatePassword(char[] password,byte[] hash_bytes) throws NoSuchAlgorithmException{

@@ -697,7 +697,7 @@ public class Client extends JFrame {
                         }
                     } else if (frame.getMESSAGE_TITLE() == MESSAGE_TITLES.ERROR) {
                         String message = (String) frame.getMESSAGE();
-                        if (ERROR_USER_NOT_EXIST.matches(message)) {
+                        if (ERROR_USER_NOT_EXIST_OR_WRONG_PASSWORD.matches(message)) {
                             showErrorDialog("Błędne login lub hasło");
                         } else if (wideokomunikator.exception.DatabaseException.ERROR_USER_IS_LOGGED_IN.matches(message)) {
                             showErrorDialog("Użytkownik jest już zalogowany");
@@ -855,7 +855,19 @@ public class Client extends JFrame {
 
                 @Override
                 public void actionPerformed(ActionEvent e) {
-                    register(email.getText(), firstname.getText(), lastname.getText(), password.getPassword());
+                    boolean ok = false;
+                    if (email.getText() != null && firstname.getText() != null && lastname.getText() != null && password.getPassword() != null && password_repeated.getPassword() != null) {
+                        if (email.getText().length() > 0 && firstname.getText().length() > 0 && lastname.getText().length() > 0 && password.getPassword().length > 0 && password_repeated.getPassword().length > 0) {
+                            if (password.getText().matches(password_repeated.getText())) {
+                                ok = true;
+                            }
+                        }
+                    }
+                    if (ok) {
+                        register(email.getText(), firstname.getText(), lastname.getText(), password.getPassword());
+                    } else {
+                        showErrorDialog("Zweryfikuj poprawnośc wprowadzonych danych");
+                    }
                 }
             });
         }

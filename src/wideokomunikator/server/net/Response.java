@@ -46,8 +46,9 @@ public class Response {
             break;
             case FRIENDS_LIST: {
                 this.frame = FriendList(frame);
-            }break;
-            case FRIEND_ACTIVITY:{
+            }
+            break;
+            case FRIEND_ACTIVITY: {
                 this.frame = FriendActivity(frame);
             }
             break;
@@ -71,15 +72,16 @@ public class Response {
         User user = null;
         try {
             user = (wideokomunikator.User) (Database.getInstance().Sign(email, password));
-            for(int i=0;i<wideokomunikator.server.Server.clientsThreads.size();i++){
-                if(user.equals(wideokomunikator.server.Server.clientsThreads.get(i).getUser())){
-                    return  new Frame(RESPONSE,frame.getUSER_ID(), frame.getMESSAGE_ID(),MESSAGE_TITLES.ERROR, DatabaseException.ERROR_USER_IS_LOGGED_IN);
+            if (user == null) {
+                return new Frame(RESPONSE, frame.getUSER_ID(), frame.getMESSAGE_ID(), MESSAGE_TITLES.ERROR, DatabaseException.ERROR_USER_NOT_EXIST_OR_WRONG_PASSWORD);
+            }
+            for (int i = 0; i < wideokomunikator.server.Server.clientsThreads.size(); i++) {
+                if (user.equals(wideokomunikator.server.Server.clientsThreads.get(i).getUser())) {
+                    return new Frame(RESPONSE, frame.getUSER_ID(), frame.getMESSAGE_ID(), MESSAGE_TITLES.ERROR, DatabaseException.ERROR_USER_IS_LOGGED_IN);
                 }
             }
-        } catch (NullPointerException ex) {
-            if (ERROR_USER_NOT_EXIST.matches(ex.getMessage())) {
-                return new Frame(RESPONSE, frame.getUSER_ID(), frame.getMESSAGE_ID(), MESSAGE_TITLES.ERROR, ex.toString());
-            }
+        } catch (Exception ex) {
+            return new Frame(RESPONSE, frame.getUSER_ID(), frame.getMESSAGE_ID(), MESSAGE_TITLES.ERROR, ex.toString());
         }
         request.setUser(user);
         wideokomunikator.server.Server.clientsActivity.put(user.getID(), true);
@@ -107,7 +109,7 @@ public class Response {
 
     private Frame Search(Frame frame) throws IOException {
         String text = (String) frame.getMESSAGE();
-        User[] u = Database.getInstance().Search(text.split("[ -]"), frame.getUSER_ID());
+        User[] u = Database.getInstance().Search(text.split("[ -_@]"), frame.getUSER_ID());
         for (int i = 0; i < u.length; i++) {
             send(new Frame(RESPONSE, frame.getUSER_ID(), frame.getMESSAGE_ID(), frame.getMESSAGE_TITLE(), u[i]));
         }
@@ -152,8 +154,8 @@ public class Response {
         }
         return new Frame(RESPONSE, frame.getUSER_ID(), frame.getMESSAGE_ID(), MESSAGE_TITLES.FINISH, u.length);
     }
-    
-    private Frame FriendActivity(Frame frame){
+
+    private Frame FriendActivity(Frame frame) {
         int user_id = (int) frame.getMESSAGE();
         boolean isActive = wideokomunikator.server.Server.clientsActivity.getOrDefault(user_id, Boolean.FALSE);
         return new Frame(RESPONSE, frame.getUSER_ID(), frame.getMESSAGE_ID(), frame.getMESSAGE_TITLE(), isActive);
