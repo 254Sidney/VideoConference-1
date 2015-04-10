@@ -142,7 +142,7 @@ public class ConferenceUser extends Thread {
         @Override
         public void run() {
             for (ConferenceUser user : users) {
-                //if (user.UserID != UserID) {
+                if (user.UserID != UserID) {
                     int port = isAudio ? user.audioPort : user.videoPort;
                     InetAddress host = user.host;
                     if (host != null && port != -1) {
@@ -159,7 +159,7 @@ public class ConferenceUser extends Thread {
                         }).start();
 
                     }
-                //}
+                }
             }
         }
     }

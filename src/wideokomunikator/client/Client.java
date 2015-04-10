@@ -59,7 +59,7 @@ public class Client extends JFrame {
         setSize(1000, 600);
         setMinimumSize(new Dimension(800, 400));
         try {
-            panel_login = new Login("wilczynskipio@gmail.com", "komutator2");
+            panel_login = new Login();
             panel_register = new Register();
         } catch (IOException ex) {
             ex.printStackTrace();

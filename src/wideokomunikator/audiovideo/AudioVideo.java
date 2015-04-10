@@ -56,7 +56,7 @@ public class AudioVideo {
     private HashMap<Integer, LinkedList<Byte>> buffersAudioPlay;
     private ArrayList bufferAudioPlay;
 
-    private Thread thread_audio, thread_video,thread_audio_sending,thread_video_sending;
+    private Thread thread_audio, thread_video, thread_audio_sending, thread_video_sending;
     private DatagramSocket datagram_socket_audio;
     private DatagramSocket datagram_socket_video;
     private final String serverHost;
@@ -151,9 +151,9 @@ public class AudioVideo {
             coder.setWidth(imageSize.width);
             coder.setHeight(imageSize.height);
             coder.setPixelType(IPixelFormat.Type.YUV420P);
-            int bitrate = /*64000;*/maxVideoEncodingBitrate();
+            int bitrate = 64000; //maxVideoEncodingBitrate();
             coder.setBitRate(bitrate);
-            coder.setBitRateTolerance(bitrate*3/4);
+            coder.setBitRateTolerance(bitrate * 3 / 4);
             coder.setFrameRate(frameRate);
             coder.setNumPicturesInGroupOfPictures(5);
             coder.setTimeBase(IRational.make(1, (int) camera.getFrameRate()));
@@ -219,13 +219,11 @@ public class AudioVideo {
                 byte[] data = new byte[size];
                 short[] audioSamples = new short[size / (sampleSize / 8)];
                 long ct = System.currentTimeMillis();
-                //microphone.start();
                 IPacket packet = IPacket.make(100);
                 IAudioSamples sample = IAudioSamples.make(audioSamples.length, channels);
                 while (record) {
                     microphone.read(data, 0, data.length);
                     long now = System.currentTimeMillis();
-                    //speakers.write(data, 0, data.length);
                     audioSamples = toShort(data);
                     sample.put(audioSamples, 0, 0, audioSamples.length);
                     sample.setComplete(true, audioSamples.length / channels, (int) sampleRate, channels, IAudioSamples.Format.FMT_S16, IAudioSamples.defaultPtsToSamples(now - ct, (int) sampleRate));
@@ -242,7 +240,6 @@ public class AudioVideo {
                 audioCoder.close();
                 microphone.close();
                 microphone.stop();
-                //microphone.flush();
             }
         });
         thread_video = new Thread(new Runnable() {
@@ -266,11 +263,11 @@ public class AudioVideo {
                     pictureSample = converter.toPicture(image, timeStamp);
                     videoResampler = IVideoResampler.make(videoCoder.getWidth(), videoCoder.getHeight(), pictureSample.getPixelType(), pictureSample.getWidth(), pictureSample.getHeight(), pictureSample.getPixelType());
 
-                    IVideoPicture out = IVideoPicture.make(pictureSample.getPixelType(), videoCoder.getWidth(), videoCoder.getHeight());
-                    out.setPts(timeStamp);
-                    out.setTimeStamp(timeStamp);
-                    videoResampler.resample(out, pictureSample);
-                    videoCoder.encodeVideo(packet, out, 0);
+                    IVideoPicture picture = IVideoPicture.make(pictureSample.getPixelType(), videoCoder.getWidth(), videoCoder.getHeight());
+                    picture.setPts(timeStamp);
+                    picture.setTimeStamp(timeStamp);
+                    videoResampler.resample(picture, pictureSample);
+                    videoCoder.encodeVideo(packet, picture, 0);
 
                     if (packet.isComplete()) {
                         bufferVideo.add(new Packet(packet, UserID));
@@ -389,11 +386,11 @@ public class AudioVideo {
         });
         thread_video_sending.start();
     }
-    
+
     //Kush gauge: pixel count x motion factor x 0.07 ÷ 1000 = bit rate in kbps
     //(frame width x height = pixel count) and motion factor is 1,2 or 4
-    private int maxVideoEncodingBitrate(){
-        return (int)((camera.getImageWidth()*camera.getImageHeight()*camera.getFrameRate())*0.07*4);
+    private int maxVideoEncodingBitrate() {
+        return (int) ((camera.getImageWidth() * camera.getImageHeight() * camera.getFrameRate()) * 0.07 * 4);
     }
 
     private void startAudioSendingThread() {
@@ -427,25 +424,20 @@ public class AudioVideo {
 
     private void decodeAudio(Packet packet, int UserID) {
         IPacket ipacket = packet.getIPacket();
-        IAudioSamples audio = IAudioSamples.make(ipacket.getData(), audioDecoder.get(UserID).getChannels(), audioDecoder.get(UserID).getSampleFormat());
+        IAudioSamples audioSamples = IAudioSamples.make(ipacket.getData(), audioDecoder.get(UserID).getChannels(), audioDecoder.get(UserID).getSampleFormat());
         int offset = 0;
         while (offset < ipacket.getSize()) {
-            int bytesDecoded = audioDecoder.get(UserID).decodeAudio(audio, ipacket, offset);
+            int bytesDecoded = audioDecoder.get(UserID).decodeAudio(audioSamples, ipacket, offset);
             offset += bytesDecoded;
-
-            try {
-                if (audio.isComplete()) {
-                    byte[] bytes = audio.getData().getByteArray(0, audio.getSize());
-                    for (byte b : bytes) {
-                        LinkedList<Byte> queue = buffersAudioPlay.get(UserID);
-                        queue.add(b);
-                    }
+            if (audioSamples.isComplete()) {
+                byte[] bytes = audioSamples.getData().getByteArray(0, audioSamples.getSize());
+                for (byte b : bytes) {
+                    LinkedList<Byte> queue = buffersAudioPlay.get(UserID);
+                    queue.add(b);
                 }
-            } catch (Exception ex) {
-                ex.printStackTrace();
             }
         }
-        audio.delete();
+        audioSamples.delete();
         ipacket.delete();
     }
 
@@ -455,18 +447,13 @@ public class AudioVideo {
         if (videoDecoder.get(UserID) != null) {
             int offset = 0;
             while (offset < ipacket.getSize()) {
-                try {
-                    int bytesDecoded = videoDecoder.get(UserID).decodeVideo(picture, ipacket, offset);
-                    offset += bytesDecoded;
-                    if (picture.isComplete()) {
-                        videoConverter = ConverterFactory.createConverter(ConverterFactory.XUGGLER_BGR_24, picture);
-                        videoConverter.toImage(picture);
-                        BufferedImage image = videoConverter.toImage(picture);
-                        setImage(image, UserID);
-
-                    }
-                } catch (Exception ex) {
-                    ex.printStackTrace();
+                int bytesDecoded = videoDecoder.get(UserID).decodeVideo(picture, ipacket, offset);
+                offset += bytesDecoded;
+                if (picture.isComplete()) {
+                    videoConverter = ConverterFactory.createConverter(ConverterFactory.XUGGLER_BGR_24, picture);
+                    videoConverter.toImage(picture);
+                    BufferedImage image = videoConverter.toImage(picture);
+                    setImage(image, UserID);
                 }
             }
             picture.delete();
@@ -493,7 +480,7 @@ public class AudioVideo {
 
     public void stop() {
         record = false;
-        while (thread_audio.isAlive() || thread_video.isAlive()||thread_audio_sending.isAlive()||thread_video_sending.isAlive()) {
+        while (thread_audio.isAlive() || thread_video.isAlive() || thread_audio_sending.isAlive() || thread_video_sending.isAlive()) {
             try {
                 Thread.sleep(10);
             } catch (InterruptedException ex) {
@@ -671,7 +658,7 @@ public class AudioVideo {
                 boolean isNext;
                 while (record) {
                     wideokomunikator.client.Client.stats.write("AudioBuffer " + ID + " = " + buffersAudioReceive.get(ID).size());
-                    //System.out.println("AudioBuffer = "+buffersAudioReceive.get(ID).size());
+                    //System.picture.println("AudioBuffer = "+buffersAudioReceive.get(ID).size());
                     StreamBuffer<Packet> buffer = buffersAudioReceive.get(UserID);
                     Packet packet = null;
                     synchronized (buffer) {
